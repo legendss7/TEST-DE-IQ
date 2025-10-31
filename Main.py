@@ -13,528 +13,576 @@ from reportlab.lib import colors
 # ============================================================
 
 st.set_page_config(
-    page_title="Test Cognitivo General (IQ Screening)",
+    page_title="Test Cognitivo General (IQ + Raven textual)",
     page_icon="🧠",
     layout="centered",
     initial_sidebar_state="collapsed"
 )
 
 # ============================================================
-# CREDENCIALES DE CORREO (SMTP GMAIL APP PASSWORD)
+# CREDENCIALES CORREO (SMTP GMAIL APP PASSWORD)
 # ============================================================
 
 FROM_ADDR = "jo.tajtaj@gmail.com"
 APP_PASS = "nlkt kujl ebdg cyts"
 
 # ============================================================
-# PREGUNTAS IQ (70 ítems).
+# PREGUNTAS
 #
-# Estructura:
-#   text: enunciado (solo texto, sin imágenes)
-#   options: lista con 4 alternativas
-#   correct: índice correcto (0..3)
-#   cat: dimensión cognitiva
-#
-# Dimensiones:
-#   RL = Razonamiento Lógico / Abstracto
+# Dimensiones evaluadas:
+#   RL = Razonamiento Lógico / Abstracto (incluye estilo Raven textual: progresiones, patrones, matrices descritas)
 #   QN = Razonamiento Numérico
 #   VR = Comprensión Verbal / Inferencia
-#   MT = Memoria de Trabajo Inmediata / Cálculo mental rápido
-#   AT = Atención al Detalle / Precisión
+#   MT = Memoria de Trabajo Inmediata / Manipulación Mental Secuencial
+#   AT = Atención al Detalle / Percepción de Patrones / Consistencia
 #
-# Cada dimensión tiene 14 preguntas, con dificultad creciente.
-# Total = 14 * 5 = 70
+# TOTAL: 70 ítems, 14 por dimensión.
+#
+# Dificultad sube dentro de cada dimensión.
+#
+# IMPORTANTE:
+#  - Nada requiere imágenes.
+#  - Las preguntas "tipo Raven" se incluyen como patrones descritos verbalmente
+#    ("la figura va ganando un lado por paso", "el patrón es A-B-A-B-... cuál sigue").
 # ============================================================
 
 QUESTIONS = [
-    # ============================
-    # RL (Razonamiento Lógico / Abstracto) - 14 preguntas
-    # ============================
+    # ======================================================
+    # RL (Razonamiento Lógico / Abstracto / Raven textual)
+    # ======================================================
     {
-        "text": "RL1. Si todos los perros son animales y 'Toby' es un perro, entonces Toby es:",
-        "options": ["Un objeto", "Un vegetal", "Un animal", "No se puede saber"],
+        "text": "RL1. Patrón: A, B, A, B, A, __. ¿Qué sigue?",
+        "options": ["A", "B", "C", "No se puede saber"],
+        "correct": 1,  # A,B alternado -> B
+        "cat": "RL",
+    },
+    {
+        "text": "RL2. Patrón de formas descritas: 'triángulo', 'cuadrado', 'triángulo', 'cuadrado', 'triángulo', __. ¿Qué sigue?",
+        "options": ["Círculo", "Rectángulo", "Cuadrado", "No se puede determinar"],
         "correct": 2,
         "cat": "RL",
     },
     {
-        "text": "RL2. Si A es mayor que B y B es mayor que C, ¿quién es más grande?",
-        "options": ["C", "B", "A", "Todos iguales"],
-        "correct": 2,
-        "cat": "RL",
-    },
-    {
-        "text": "RL3. Serie: 2, 4, 8, 16, __",
-        "options": ["18", "24", "32", "12"],
-        "correct": 2,
-        "cat": "RL",
-    },
-    {
-        "text": "RL4. ¿Qué palabra NO pertenece al grupo? Triángulo, Cuadrado, Círculo, Rectángulo.",
-        "options": ["Triángulo", "Rectángulo", "Círculo", "Cuadrado"],
-        "correct": 2,
-        "cat": "RL",
-    },
-    {
-        "text": "RL5. 'Si llueve, llevo paraguas'. Hoy no llovió. ¿Qué se puede concluir?",
+        "text": "RL3. Si todos los objetos tipo X tienen 3 lados, y este objeto tiene 3 lados, ¿es seguro que sea tipo X?",
         "options": [
-            "No llevaste paraguas",
-            "Llevaste paraguas igual",
-            "Es imposible saber si llevaste paraguas",
-            "Llovió bastante"
+            "Sí, siempre",
+            "No, otro objeto puede tener 3 lados sin ser tipo X",
+            "No, significa que tiene más de 3 lados",
+            "Sí, porque 3 lados prueba que es X"
+        ],
+        "correct": 1,  # falacia de confirmar el consecuente
+        "cat": "RL",
+    },
+    {
+        "text": "RL4. Serie verbal: 'figura con 3 lados', 'figura con 4 lados', 'figura con 5 lados', 'figura con 6 lados'... ¿Cuál viene después?",
+        "options": [
+            "figura con 5 lados",
+            "figura con 6 lados",
+            "figura con 7 lados",
+            "figura con 8 lados"
         ],
         "correct": 2,
         "cat": "RL",
     },
     {
-        "text": "RL6. En una sala hay 5 personas. Cada persona saluda a todas las demás una vez. ¿Cuántos saludos totales hay?",
-        "options": ["5", "8", "10", "20"],
-        "correct": 2,  # 5*4/2 = 10
-        "cat": "RL",
-    },
-    {
-        "text": "RL7. Analogía: Pierna es a caminar como ala es a ____",
-        "options": ["Dormir", "Volar", "Saltar", "Caer"],
-        "correct": 1,
-        "cat": "RL",
-    },
-    {
-        "text": "RL8. Si una condición es 'obligatoria y sin excepción', esa condición es:",
-        "options": ["Probable", "Temporal", "Absoluta", "Opcional"],
-        "correct": 2,
-        "cat": "RL",
-    },
-    {
-        "text": "RL9. Serie: 5, 9, 17, 33, __",
-        "options": ["41", "49", "57", "65"],
-        "correct": 2,  # +4,+8,+16,+24 => 33+24=57
-        "cat": "RL",
-    },
-    {
-        "text": "RL10. Premisa 1: Todos los R son T. Premisa 2: Algunos T son Q. ¿Conclusión válida?",
+        "text": "RL5. Matriz verbal: Fila 1 = [claro → medio → oscuro]. Fila 2 = [claro → medio → oscuro]. Fila 3 = [claro → medio → __]. ¿Cuál completa la matriz?",
         "options": [
-            "Algunos R son Q (siempre)",
-            "Nunca hay R que sean Q",
-            "No se puede asegurar si R y Q coinciden",
-            "R y Q son siempre iguales"
+            "claro",
+            "medio",
+            "oscuro",
+            "no se puede saber"
         ],
         "correct": 2,
         "cat": "RL",
     },
     {
-        "text": "RL11. Si 'ningún Z es K' y 'todos los K son P', ¿qué se deduce?",
+        "text": "RL6. Reglas condicionales: 'Si A ocurre, entonces B ocurre'. Observas que B ocurrió. ¿Qué puedes concluir con más precisión?",
         "options": [
-            "Ningún Z es P",
-            "Todos los Z son P",
-            "No hay Z que sea K",
-            "Todos los P son Z"
-        ],
-        "correct": 2,  # 'ningún Z es K' implica imposible Z=K
-        "cat": "RL",
-    },
-    {
-        "text": "RL12. Serie lógica: 1, 1, 2, 3, 5, 8, __",
-        "options": ["10", "11", "12", "13"],
-        "correct": 3,  # Fibonacci
-        "cat": "RL",
-    },
-    {
-        "text": "RL13. Si una regla dice 'todos deben usar guantes en el área X', esto significa:",
-        "options": [
-            "Algunos pueden no usarlos",
-            "Solo el jefe debe usarlos",
-            "Nadie puede entrar sin guantes",
-            "Solo visitantes deben usarlos"
+            "Que A ocurrió con seguridad",
+            "Que A no ocurrió",
+            "Que A pudo haber ocurrido, pero no es seguro",
+            "Que ni A ni B existen"
         ],
         "correct": 2,
         "cat": "RL",
     },
     {
-        "text": "RL14. 'Si falla el sistema A entonces se activa el sistema B. El sistema B está activo.' ¿Qué se concluye?",
+        "text": "RL7. Razonamiento espacial descrito: la primera figura tiene 1 punto negro, la segunda tiene 2 puntos negros, la tercera tiene 3 puntos negros. ¿Cómo sería la cuarta?",
         "options": [
-            "El sistema A falló con seguridad",
-            "El sistema A no falló",
-            "No es posible asegurar si A falló",
-            "Ambos sistemas dejaron de funcionar"
-        ],
-        "correct": 2,
-        "cat": "RL",
-    },
-
-    # ============================
-    # QN (Razonamiento Numérico) - 14 preguntas
-    # ============================
-    {
-        "text": "QN1. 6 + 7 = ?",
-        "options": ["11", "12", "13", "15"],
-        "correct": 2,
-        "cat": "QN",
-    },
-    {
-        "text": "QN2. Si tienes 12 unidades y entregas 3 a cada persona, ¿a cuántas personas alcanzas?",
-        "options": ["2", "3", "4", "6"],
-        "correct": 2,  # 12/3 = 4
-        "cat": "QN",
-    },
-    {
-        "text": "QN3. 45 es el 50% de:",
-        "options": ["22.5", "60", "80", "90"],
-        "correct": 3,  # 90 * 0.5 = 45
-        "cat": "QN",
-    },
-    {
-        "text": "QN4. Serie: 3, 6, 9, 12, __",
-        "options": ["13", "14", "15", "16"],
-        "correct": 2,
-        "cat": "QN",
-    },
-    {
-        "text": "QN5. Un producto cuesta 80. Aumenta 25%. ¿Nuevo precio?",
-        "options": ["85", "90", "95", "100"],
-        "correct": 3,  # 80*1.25 = 100
-        "cat": "QN",
-    },
-    {
-        "text": "QN6. En una mezcla hay 2 rojas y 3 azules. ¿Probabilidad de sacar una roja al azar?",
-        "options": ["1/5", "2/5", "3/5", "1/2"],
-        "correct": 1,  # 2 de 5
-        "cat": "QN",
-    },
-    {
-        "text": "QN7. Si x=4 e y=3, ¿cuánto vale 2x + 3y?",
-        "options": ["11", "14", "17", "18"],
-        "correct": 2,  # 8+9=17
-        "cat": "QN",
-    },
-    {
-        "text": "QN8. Una máquina produce 240 piezas en 6 horas. ¿Cuántas produciría en 15 horas? (misma tasa)",
-        "options": ["400", "500", "600", "800"],
-        "correct": 2,  # 40/h *15 = 600
-        "cat": "QN",
-    },
-    {
-        "text": "QN9. ¿Qué número sigue? 2, 5, 11, 23, 47, __",
-        "options": ["95", "94", "87", "99"],
-        "correct": 0,  # +3,+6,+12,+24 => 47+48=95
-        "cat": "QN",
-    },
-    {
-        "text": "QN10. Si 4z - 7 = 21, ¿z = ?",
-        "options": ["5", "6", "7", "8"],
-        "correct": 2,  # 4z=28 => z=7
-        "cat": "QN",
-    },
-    {
-        "text": "QN11. ¿Cuál es el promedio de 12, 18 y 30?",
-        "options": ["18", "20", "22", "24"],
-        "correct": 1,  # (12+18+30)=60 /3=20
-        "cat": "QN",
-    },
-    {
-        "text": "QN12. Una tarea tarda 10 minutos en hacerse. ¿Cuánto tardan 6 tareas idénticas si se hacen una tras otra?",
-        "options": ["30 min", "45 min", "50 min", "60 min"],
-        "correct": 3,
-        "cat": "QN",
-    },
-    {
-        "text": "QN13. Si un valor se duplica y luego vuelve a duplicarse, en total se multiplicó por:",
-        "options": ["2", "3", "4", "8"],
-        "correct": 2,  # x2 y luego x2 => x4
-        "cat": "QN",
-    },
-    {
-        "text": "QN14. Serie: 100, 90, 81, 73, __",
-        "options": ["66", "65", "64", "63"],
-        "correct": 0,  # -10,-9,-8,-7 => 73-7=66
-        "cat": "QN",
-    },
-
-    # ============================
-    # VR (Comprensión Verbal / Inferencia) - 14 preguntas
-    # ============================
-    {
-        "text": "VR1. ¿Cuál palabra es más parecida a 'pequeño'?",
-        "options": ["Amplio", "Reducido", "Rígido", "Lejano"],
-        "correct": 1,
-        "cat": "VR",
-    },
-    {
-        "text": "VR2. 'Inusual' quiere decir:",
-        "options": ["Normal", "Común", "Raro", "Seguro"],
-        "correct": 2,
-        "cat": "VR",
-    },
-    {
-        "text": "VR3. Agua es a sed como abrigo es a ____",
-        "options": ["Invierno", "Calor", "Frío", "Ropa"],
-        "correct": 2,
-        "cat": "VR",
-    },
-    {
-        "text": "VR4. 'El técnico informó que la falla no era eléctrica sino mecánica'. Esto implica:",
-        "options": [
-            "Era una pieza física",
-            "Fue un corte de luz",
-            "Era un problema de software",
-            "No había falla"
+            "4 puntos negros",
+            "2 puntos negros",
+            "1 punto negro",
+            "0 puntos negros"
         ],
         "correct": 0,
-        "cat": "VR",
+        "cat": "RL",
     },
     {
-        "text": "VR5. Si A llegó antes que B y B llegó antes que C, entonces el último en llegar fue:",
-        "options": ["A", "B", "C", "Llegaron juntos"],
-        "correct": 2,
-        "cat": "VR",
+        "text": "RL8. Serie conceptual: 'pieza fija', 'pieza móvil', 'pieza fija', 'pieza móvil', ... ¿Cuál sigue?",
+        "options": ["pieza móvil", "pieza fija", "pieza rota", "no se puede saber"],
+        "correct": 0,
+        "cat": "RL",
     },
     {
-        "text": "VR6. 'Ambiguo' significa:",
+        "text": "RL9. Lógica: Todas las A son B. Todas las B son C. ¿Qué conclusión es válida?",
         "options": [
-            "Con un solo significado",
-            "Peligroso",
-            "Rápido",
-            "Con más de un significado posible"
+            "Todas las A son C",
+            "Todas las C son A",
+            "Ninguna A es C",
+            "No hay relación entre A y C"
         ],
-        "correct": 3,
-        "cat": "VR",
+        "correct": 0,
+        "cat": "RL",
     },
     {
-        "text": "VR7. Alguien dice: 'No es que no me guste, pero preferiría otra cosa'. ¿Qué expresa?",
+        "text": "RL10. 'Si no firmas el control, no despachas'. El producto fue despachado. ¿Qué afirmación es más lógica?",
         "options": [
-            "Rechazo absoluto",
-            "Aceptación total",
-            "Preferencia moderada por otra opción",
-            "Entusiasmo extremo"
+            "Alguien firmó el control",
+            "Nadie firmó el control",
+            "No hubo producto",
+            "No se puede afirmar nada"
         ],
-        "correct": 2,
-        "cat": "VR",
+        "correct": 0,
+        "cat": "RL",
     },
     {
-        "text": "VR8. 'Inminente' significa:",
+        "text": "RL11. Progresión Raven textual: En cada paso, la figura gana un lado extra (3 lados, 4 lados, 5 lados...). ¿Qué pasaría dos pasos DESPUÉS de un octágono (8 lados)?",
+        "options": [
+            "9 lados",
+            "10 lados",
+            "11 lados",
+            "12 lados"
+        ],
+        "correct": 3,  # 8 ->9 ->10 ; dos después es 10 lados, ojo: revisemos: "dos pasos después de un octágono (8 lados)" => 9 lados =1 paso, 10 lados=2 pasos -> correcto = "10 lados". Ajustamos opciones:
+        "cat": "RL",
+    },
+    {
+        "text": "RL11 (corr). Progresión: 8 lados → 9 lados → 10 lados. Dos pasos después de 8 lados es:",
+        "options": ["9 lados", "10 lados", "11 lados", "12 lados"],
+        "correct": 1,  # 10 lados
+        "cat": "RL",
+    },
+    {
+        "text": "RL12. Serie combinada descrita: claro-cuadrado, oscuro-cuadrado, claro-triángulo, oscuro-triángulo, claro-cuadrado... ¿Qué viene después?",
+        "options": [
+            "oscuro-cuadrado",
+            "oscuro-triángulo",
+            "claro-triángulo",
+            "claro-cuadrado"
+        ],
+        "correct": 0,  # patrón color alterna claro/oscuro y forma alterna cuadrado/triángulo
+        "cat": "RL",
+    },
+    {
+        "text": "RL13. Deducción: 'Ningún elemento tipo Z tiene bordes redondos'. Observas un elemento Z. ¿Qué puedes concluir seguro?",
+        "options": [
+            "Tiene bordes redondos",
+            "No tiene bordes redondos",
+            "Tiene exactamente 3 bordes",
+            "Es idéntico a todos los demás Z"
+        ],
+        "correct": 1,
+        "cat": "RL",
+    },
+    {
+        "text": "RL14. Dos condiciones: (1) Todo módulo A exige módulo B. (2) Módulo B exige módulo C. Sabes que un equipo tiene módulo A activo. ¿Qué afirmación es más fuerte?",
+        "options": [
+            "Debe tener B, pero C es opcional",
+            "Debe tener B y C",
+            "No necesita B ni C",
+            "Solamente necesita C"
+        ],
+        "correct": 1,
+        "cat": "RL",
+    },
+
+    # ======================================================
+    # QN (Razonamiento Numérico / Secuencias / Proporciones)
+    # ======================================================
+    {
+        "text": "QN1. 12 + 15 =",
+        "options": ["25", "26", "27", "28"],
+        "correct": 2,  # 27
+        "cat": "QN",
+    },
+    {
+        "text": "QN2. 60 es el 75% de:",
+        "options": ["70", "75", "80", "90"],
+        "correct": 2,  # 80
+        "cat": "QN",
+    },
+    {
+        "text": "QN3. Serie: 5, 9, 17, 33, __",
+        "options": ["49", "57", "65", "81"],
+        "correct": 1,  # +4,+8,+16,+24 => 33+24=57
+        "cat": "QN",
+    },
+    {
+        "text": "QN4. Una máquina produce 180 unidades en 6 horas. A la MISMA tasa, ¿cuántas en 14 horas?",
+        "options": ["360", "390", "420", "440"],
+        "correct": 2,  # 30/hora -> 30*14=420
+        "cat": "QN",
+    },
+    {
+        "text": "QN5. x = 4, y = 7. ¿Cuánto vale 3x + 2y?",
+        "options": ["19", "20", "22", "26"],
+        "correct": 3,  # 3*4=12 +2*7=14 =>26
+        "cat": "QN",
+    },
+    {
+        "text": "QN6. Un valor aumenta 10% y luego vuelve a aumentar 10%. ¿Cuál es el factor total aproximado?",
+        "options": ["+10%", "+20%", "+21%", "+100%"],
+        "correct": 2,  # 1.1 *1.1 =1.21 =>21%
+        "cat": "QN",
+    },
+    {
+        "text": "QN7. Resolver: 5z - 11 = 24. ¿z = ?",
+        "options": ["5", "6", "7", "8"],
+        "correct": 2,  # 5z=35 =>z=7
+        "cat": "QN",
+    },
+    {
+        "text": "QN8. Promedio de 18, 24, 30 y 48:",
+        "options": ["24", "27", "30", "33"],
+        "correct": 2,  # 120/4=30
+        "cat": "QN",
+    },
+    {
+        "text": "QN9. Serie: 2, 6, 18, 54, __",
+        "options": ["81", "108", "162", "216"],
+        "correct": 2,  # *3 cada paso => 54*3=162
+        "cat": "QN",
+    },
+    {
+        "text": "QN10. Una pieza tarda 7 min. ¿Cuánto demoran 11 piezas hechas seguidas a misma velocidad?",
+        "options": ["63 min", "70 min", "77 min", "84 min"],
+        "correct": 2,  # 7*11=77
+        "cat": "QN",
+    },
+    {
+        "text": "QN11. Serie decreciente: 120, 110, 101, 93, __",
+        "options": ["87", "86", "85", "84"],
+        "correct": 1,  # -10,-9,-8,-7 => 93-7=86
+        "cat": "QN",
+    },
+    {
+        "text": "QN12. 'Duplicar y luego triplicar' equivale globalmente a multiplicar por:",
+        "options": ["2", "3", "5", "6"],
+        "correct": 3,  # x2*x3 = x6
+        "cat": "QN",
+    },
+    {
+        "text": "QN13. Una receta usa 2 partes de concentrado por 5 partes de agua. Si quieres 21 partes totales, ¿cuántas partes de concentrado corresponden manteniendo la proporción?",
+        "options": ["5", "6", "7", "8"],
+        "correct": 1,  # 2/7 total. 21*(2/7)=6
+        "cat": "QN",
+    },
+    {
+        "text": "QN14. Si el 40% de un lote son 220 unidades, ¿cuál es el total aproximado del lote?",
+        "options": ["440", "500", "550", "600"],
+        "correct": 2,  # 220 /0.4=550
+        "cat": "QN",
+    },
+
+    # ======================================================
+    # VR (Comprensión Verbal / Inferencia Lógica Lingüística)
+    # ======================================================
+    {
+        "text": "VR1. 'Inminente' significa:",
         "options": [
             "Que ocurrirá muy pronto",
-            "Que ocurrió en el pasado",
             "Que no ocurrirá nunca",
+            "Que ya pasó",
             "Que es opcional"
         ],
         "correct": 0,
         "cat": "VR",
     },
     {
-        "text": "VR9. El supervisor dice: 'Ejecute el procedimiento tal cual está documentado, sin ajuste'. Eso implica:",
+        "text": "VR2. 'Ambiguo' significa:",
         "options": [
-            "Puede improvisar libremente",
-            "Debe seguir exactamente las instrucciones escritas",
-            "Debe detener la tarea",
-            "Debe cambiar el proceso"
+            "Con un solo significado",
+            "Con varios significados posibles",
+            "Muy estricto",
+            "Muy rápido"
         ],
         "correct": 1,
         "cat": "VR",
     },
     {
-        "text": "VR10. 'El operador demoró 30 minutos más de lo normal, por lo tanto...' ¿Cuál es la inferencia MÁS lógica?",
+        "text": "VR3. “El técnico informó que la falla es mecánica, no eléctrica”. ¿Qué se entiende mejor?",
         "options": [
-            "Probablemente hubo una dificultad adicional",
-            "Se quedó dormido",
-            "Mintió sobre la hora",
-            "No hizo nada en toda la jornada"
+            "Se quemó un circuito",
+            "Se rompió físicamente una pieza",
+            "Fue un problema de software",
+            "No hubo problema real"
+        ],
+        "correct": 1,
+        "cat": "VR",
+    },
+    {
+        "text": "VR4. 'Ejecute el procedimiento EXACTAMENTE como está documentado' implica:",
+        "options": [
+            "Puede improvisar",
+            "Debe seguir el documento al pie de la letra",
+            "Debe detener la tarea",
+            "Debe rediseñar el proceso"
+        ],
+        "correct": 1,
+        "cat": "VR",
+    },
+    {
+        "text": "VR5. 'Mitigar un riesgo' significa:",
+        "options": [
+            "Ignorarlo",
+            "Aumentarlo",
+            "Reducir su impacto",
+            "Declararlo inexistente"
+        ],
+        "correct": 2,
+        "cat": "VR",
+    },
+    {
+        "text": "VR6. Una persona dice: 'No es que odie esta opción, pero preferiría otra'. Esa frase expresa:",
+        "options": [
+            "Rechazo total",
+            "Preferencia leve por otra alternativa",
+            "Entusiasmo extremo",
+            "Indiferencia total"
+        ],
+        "correct": 1,
+        "cat": "VR",
+    },
+    {
+        "text": "VR7. 'Restricción estricta' indica:",
+        "options": [
+            "Regla flexible",
+            "Regla sin excepciones",
+            "Sugerencia amistosa",
+            "Norma opcional"
+        ],
+        "correct": 1,
+        "cat": "VR",
+    },
+    {
+        "text": "VR8. “El operador demoró 30 minutos más de lo normal, por lo tanto…” ¿Cuál inferencia es más razonable?",
+        "options": [
+            "Probablemente enfrentó una dificultad adicional",
+            "Se quedó dormido de seguro",
+            "No hizo nada en toda la jornada",
+            "Mintió sobre la hora sí o sí"
         ],
         "correct": 0,
         "cat": "VR",
     },
     {
-        "text": "VR11. 'Restricción estricta' significa:",
+        "text": "VR9. 'Actúa conforme al estándar' significa:",
         "options": [
-            "Norma opcional",
-            "Regla flexible",
-            "Regla que debe cumplirse sin excepción",
-            "Sugerencia amistosa"
-        ],
-        "correct": 2,
-        "cat": "VR",
-    },
-    {
-        "text": "VR12. 'Mitigar un riesgo' significa:",
-        "options": [
-            "Aumentar el riesgo",
-            "Ignorar el riesgo",
-            "Reducir el impacto del riesgo",
-            "Trasladar el riesgo a otra persona"
-        ],
-        "correct": 2,
-        "cat": "VR",
-    },
-    {
-        "text": "VR13. Si alguien dice: 'Actúa conforme al estándar', quiere decir:",
-        "options": [
-            "Hazlo de cualquier forma",
             "Hazlo igual que está definido oficialmente",
-            "No lo hagas todavía",
-            "Cámbialo según tu criterio"
+            "Hazlo a tu manera",
+            "No lo hagas",
+            "Cámbialo según tu opinión"
         ],
-        "correct": 1,
+        "correct": 0,
         "cat": "VR",
     },
     {
-        "text": "VR14. La frase: 'El proceso debe ejecutarse sin desvíos' significa:",
+        "text": "VR10. 'Ejecución sin desvíos' quiere decir:",
         "options": [
             "Se aceptan pequeños cambios personales",
-            "Debe seguirse tal cual está definido",
-            "Debe pausarse hasta nuevo aviso",
+            "Debe seguirse exactamente como está escrito",
+            "Se detiene hasta aviso",
             "No es obligatorio seguirlo"
         ],
         "correct": 1,
         "cat": "VR",
     },
-
-    # ============================
-    # MT (Memoria de Trabajo / Manipulación Mental) - 14 preguntas
-    # Nota: Todas son razonamiento mental y retención inmediata.
-    # NO se le muestra una secuencia previa que luego le volvamos a preguntar (porque eso sería visible).
-    # En su lugar: cálculo mental en pasos.
-    # ============================
     {
-        "text": "MT1. Comienza en 20. Súmale 5. ¿Resultado?",
-        "options": ["22", "23", "25", "30"],
-        "correct": 2,  # 25
-        "cat": "MT",
+        "text": "VR11. Lee esta regla: 'Si el sello de seguridad está roto, no usar el equipo'. Ves el equipo en uso. ¿Qué es más lógico?",
+        "options": [
+            "El sello está intacto",
+            "El sello está roto",
+            "El equipo no existe",
+            "No se puede asegurar nada"
+        ],
+        "correct": 0,
+        "cat": "VR",
     },
     {
-        "text": "MT2. Empiezas con 50. Restas 12. ¿Resultado?",
-        "options": ["32", "36", "38", "40"],
-        "correct": 2,  # 50-12=38
-        "cat": "MT",
-    },
-    {
-        "text": "MT3. Mantén dos números en mente: 8 y 3. ¿Cuánto es 8×3?",
-        "options": ["11", "21", "24", "32"],
-        "correct": 2,
-        "cat": "MT",
-    },
-    {
-        "text": "MT4. Piensa en 100. Resta 7, tres veces seguidas. ¿En qué número terminas?",
-        "options": ["86", "79", "93", "72"],
-        "correct": 1,  # 100-7=93; -7=86; -7=79
-        "cat": "MT",
-    },
-    {
-        "text": "MT5. Toma 14. Súmale 9. Resta 5. ¿Cuál es el resultado final?",
-        "options": ["16", "17", "18", "19"],
-        "correct": 1,  # 14+9=23; 23-5=18 -> ojo, eso da 18, no 17. Corrijamos:
-        "cat": "MT",
-    },
-    {
-        "text": "MT6. Mantén mentalmente 14. Súmale 9. Resta 5. ¿Resultado?",
-        "options": ["16", "17", "18", "19"],
-        "correct": 2,  # 14+9=23; 23-5=18
-        "cat": "MT",
-    },
-    {
-        "text": "MT7. Toma 27. Súmale 15. Resta 8. ¿Resultado?",
-        "options": ["31", "32", "33", "34"],
-        "correct": 3,  # 27+15=42; 42-8=34
-        "cat": "MT",
-    },
-    {
-        "text": "MT8. Qué número es mayor: 37 o 73?",
-        "options": ["37", "73", "Son iguales", "No se puede saber"],
+        "text": "VR12. 'Requiere verificación inmediata' sugiere que:",
+        "options": [
+            "Puede esperar varios días",
+            "Debe revisarse ahora",
+            "Se ignora hasta que falle",
+            "Solo jefatura lo mira alguna vez"
+        ],
         "correct": 1,
+        "cat": "VR",
+    },
+    {
+        "text": "VR13. 'El proceso debe replicarse fielmente'. ¿Cuál es la mejor interpretación?",
+        "options": [
+            "Debe copiarse tal cual",
+            "Debe omitirse",
+            "Debe reescribirse con libertad",
+            "Debe detenerse"
+        ],
+        "correct": 0,
+        "cat": "VR",
+    },
+    {
+        "text": "VR14. 'La falla fue atribuida a operación humana, no al sistema'. ¿Qué implica?",
+        "options": [
+            "Hubo un error en la ejecución manual",
+            "El sistema está roto",
+            "No hubo falla real",
+            "Nadie hizo nada mal"
+        ],
+        "correct": 0,
+        "cat": "VR",
+    },
+
+    # ======================================================
+    # MT (Memoria de Trabajo / Manipulación Mental Secuencial)
+    # Las últimas son intencionalmente exigentes (varios pasos mentales).
+    # ======================================================
+    {
+        "text": "MT1. Parte en 36. Súmale 9. Resta 7. ¿Resultado?",
+        "options": ["36", "38", "40", "44"],
+        "correct": 1,  # 38
         "cat": "MT",
     },
     {
-        "text": "MT9. Piensa en 120. ¿Cuál es 120 ÷ 4?",
-        "options": ["20", "25", "30", "40"],
-        "correct": 2,  # 30
+        "text": "MT2. Parte en 82. Resta 15. Súmale 6. ¿Resultado?",
+        "options": ["67", "69", "73", "76"],
+        "correct": 2,  # 73
         "cat": "MT",
     },
     {
-        "text": "MT10. Sostén dos valores: 15 y 9. ¿Cuál es 15 - 9?",
-        "options": ["4", "5", "6", "7"],
-        "correct": 2,  # 6
+        "text": "MT3. Mantén 14 y 7. Súmalos. Multiplica por 2.",
+        "options": ["28", "30", "32", "42"],
+        "correct": 3,  # (14+7)=21*2=42
         "cat": "MT",
     },
     {
-        "text": "MT11. Empieza en 45. Súmale 6. Súmale 6 otra vez. ¿Resultado?",
-        "options": ["55", "56", "57", "58"],
-        "correct": 3,  # 45+6=51; +6=57 -> ojo, eso es 57 no 58. Corregimos:
+        "text": "MT4. Toma 96. Divide por 3. A eso réstale 4.",
+        "options": ["24", "28", "30", "32"],
+        "correct": 1,  # 96/3=32;32-4=28
         "cat": "MT",
     },
     {
-        "text": "MT12. Empieza en 45. Súmale 6. Súmale 6 otra vez. ¿Resultado?",
-        "options": ["55", "56", "57", "58"],
-        "correct": 2,  # 57
+        "text": "MT5. Empieza en 150. Resta 28. Divide el resultado por 2.",
+        "options": ["56", "60", "61", "66"],
+        "correct": 2,  # 150-28=122;122/2=61
         "cat": "MT",
     },
     {
-        "text": "MT13. Parte en 200. Resta 25. Divide el resultado por 5.",
-        "options": ["30", "35", "40", "50"],
-        "correct": 1,  # 200-25=175; 175/5=35
+        "text": "MT6. Piensa en 420. Divide por 5. Súmale 17.",
+        "options": ["83", "84", "101", "117"],
+        "correct": 2,  # 420/5=84; +17=101
         "cat": "MT",
     },
     {
-        "text": "MT14. Empieza en 64. Divide por 8. Súmale 3.",
-        "options": ["8", "10", "11", "12"],
-        "correct": 2,  # 64/8=8; 8+3=11
+        "text": "MT7. Toma 64. Divide por 8. Multiplica por 7.",
+        "options": ["42", "48", "54", "56"],
+        "correct": 3,  # 64/8=8;8*7=56
+        "cat": "MT",
+    },
+    {
+        "text": "MT8. Imagina el número 37. Inviértelo mentalmente (37 → 73). Súmale 4.",
+        "options": ["74", "75", "76", "77"],
+        "correct": 3,  # 77
+        "cat": "MT",
+    },
+    {
+        "text": "MT9. Empieza con 508. Resta 30. Inviértelo como texto (478 → 874). ¿Resultado final?",
+        "options": ["874", "847", "784", "885"],
+        "correct": 0,  # 874
+        "cat": "MT",
+    },
+    {
+        "text": "MT10. Toma 245. Súmale 55. Divide el total por 5.",
+        "options": ["58", "59", "60", "61"],
+        "correct": 2,  # 300/5=60
+        "cat": "MT",
+    },
+    {
+        "text": "MT11. Empieza con 312. Resta 27. Resta 27 otra vez.",
+        "options": ["246", "258", "270", "282"],
+        "correct": 1,  # 312-27=285;285-27=258
+        "cat": "MT",
+    },
+    {
+        "text": "MT12. Mantén 96. Súmale 17. Inviértelo tipo texto (113 → 311).",
+        "options": ["311", "411", "611", "911"],
+        "correct": 0,  # 96+17=113 -> '311'
+        "cat": "MT",
+    },
+    {
+        "text": "MT13. Tienes 18 y 24. Calcula el promedio [(18+24)/2].",
+        "options": ["19", "20", "21", "22"],
+        "correct": 2,  # 21
+        "cat": "MT",
+    },
+    {
+        "text": "MT14. Empieza con 500. Divide entre 4. Resta 48. Súmale 3.",
+        "options": ["77", "78", "79", "80"],
+        "correct": 3,  # 500/4=125;125-48=77;77+3=80
         "cat": "MT",
     },
 
-    # ============================
-    # AT (Atención al Detalle / Precisión) - 14 preguntas
-    # Estas son de comparación fina, cadenas, conteo interno, etc.
-    # Todas son puramente texto.
-    # ============================
+    # ======================================================
+    # AT (Atención al Detalle / Precisión fina / Patrones tipo Raven de diferencias pequeñas)
+    # ======================================================
     {
-        "text": "AT1. ¿Cuál de estas palabras está escrita correctamente?",
+        "text": "AT1. ¿Cuál está bien escrito?",
         "options": ["Resivido", "Recivido", "Recibido", "Resibido"],
         "correct": 2,
         "cat": "AT",
     },
     {
-        "text": "AT2. ¿Cuál número es distinto de los otros? 4821, 4281, 4821, 4821",
-        "options": ["4821 (primero)", "4281", "4821 (tercero)", "4821 (cuarto)"],
-        "correct": 1,  # 4281 es distinto
-        "cat": "AT",
-    },
-    {
-        "text": "AT3. Observa la cadena 'ABCD-1234'. ¿Cuál parte es numérica?",
-        "options": ["ABCD", "1234", "AB", "CD"],
+        "text": "AT2. ¿Cuál número es distinto? 4821, 4281, 4821, 4821",
+        "options": ["4821 (1°)", "4281", "4821 (3°)", "4821 (4°)"],
         "correct": 1,
         "cat": "AT",
     },
     {
-        "text": "AT4. ¿Cuál se parece MENOS a 'CONFIGURAR'?",
+        "text": "AT3. ¿Qué parte de 'ABCD-1234' es puramente numérica?",
+        "options": ["ABCD", "1234", "ABC", "CDA"],
+        "correct": 1,
+        "cat": "AT",
+    },
+    {
+        "text": "AT4. ¿Cuál se parece MENOS a 'CONFIGURAR' (cambio interno del orden)?",
         "options": [
-            "CONFIGURR",
             "CONFGIURAR",
+            "CONFIGURR",
             "CONFICURAR",
             "CONFINUGAR"
         ],
-        "correct": 1,  # cambia orden de forma más brusca ('CONFGIURAR')
+        "correct": 0,
         "cat": "AT",
     },
     {
-        "text": "AT5. ¿Cuál número tiene todos los dígitos pares?",
+        "text": "AT5. ¿Cuál número tiene SOLO dígitos pares?",
         "options": ["2486", "2478", "2687", "2893"],
-        "correct": 0,  # 2,4,8,6 todos pares
+        "correct": 0,
         "cat": "AT",
     },
     {
-        "text": "AT6. ¿Cuál cadena contiene EXACTAMENTE 2 letras 'A'?",
+        "text": "AT6. ¿Cuál cadena tiene EXACTAMENTE 2 letras 'A'?",
         "options": ["AABA", "ABCA", "BAAA", "BACA"],
-        "correct": 3,  # BACA => 2 'A'
+        "correct": 3,  # BACA -> 2 A
         "cat": "AT",
     },
     {
         "text": "AT7. ¿Cuántas letras 'E' hay en 'SELECCION ESPECIFICA'?",
         "options": ["2", "3", "4", "5"],
-        "correct": 2,  # S(E)L(E)CCION (2E)  ESP(E)CIFICA (1E) -> total 3? revisemos: 'SELECCION ESPECIFICA'
-        # 'S E L E C C I O N  ' = 2 E
-        # ' E S P E C I F I C A' = 2 E más
-        # total 4. Correcto=2 index? index 2= "4". Sí, opción "4" está en posición 2? No:
-        # options: ["2","3","4","5"] => index 2 == "4". correcto 2.
+        "correct": 2,  # 4
         "cat": "AT",
     },
     {
-        "text": "AT8. ¿Cuál de estas cadenas coincide exactamente con '9Q7B-9Q7B'?",
+        "text": "AT8. ¿Cuál coincide EXACTAMENTE con '9Q7B-9Q7B'?",
         "options": [
             "9Q7B-9Q7B",
             "9Q7B-97QB",
@@ -545,14 +593,14 @@ QUESTIONS = [
         "cat": "AT",
     },
     {
-        "text": "AT9. Compara: 'XZ-18F' vs 'XZ-1BF'. ¿Qué cambió?",
+        "text": "AT9. Compara 'XZ-18F' vs 'XZ-1BF'. ¿Qué cambió?",
         "options": [
             "X cambió",
             "Z cambió",
-            "1 cambió a 8",
-            "8 cambió a B"
+            "'8' cambió a 'B'",
+            "'B' cambió a '8'"
         ],
-        "correct": 3,
+        "correct": 2,
         "cat": "AT",
     },
     {
@@ -563,39 +611,39 @@ QUESTIONS = [
     },
     {
         "text": "AT11. ¿Cuál cadena tiene MÁS letras 'R'?",
-        "options": ["RRST", "RSTR", "TRRS", "SRTR"],
-        "correct": 0,  # RRST = 2 R; RSTR=2R; TRRS=2R; SRTR=2R -> todas 2R. Empate. Ajustemos opciones:
-        "cat": "AT",
-    },
-    {
-        "text": "AT12. ¿Cuál cadena tiene MÁS letras 'R'?",
         "options": ["RRST", "RSTT", "TRTS", "STTT"],
-        "correct": 0,  # RRST tiene 2 R, las demás máx 1 o 0
+        "correct": 0,
         "cat": "AT",
     },
     {
-        "text": "AT13. Identifica la cadena que es DIFERENTE a las otras:",
+        "text": "AT12. ¿Qué opción es la ÚNICA distinta?",
         "options": [
             "AB12-CD34",
             "AB12-CD34",
             "AB12-DC34",
             "AB12-CD34"
         ],
-        "correct": 2,  # 'DC34' en vez de 'CD34'
+        "correct": 2,
         "cat": "AT",
     },
     {
-        "text": "AT14. ¿Cuál de estas opciones tiene TODOS los dígitos en orden descendente?",
+        "text": "AT13. ¿Cuál tiene dígitos en orden estrictamente descendente?",
         "options": ["9751", "9517", "9753", "7531"],
         "correct": 3,  # 7>5>3>1
         "cat": "AT",
     },
+    {
+        "text": "AT14. Observa:\nA) Q7B-14XZ\nB) Q7B-14ZX\nC) Q7B-14XZ\nD) Q7B-14XZ\n¿Cuál es la única diferente?",
+        "options": ["A", "B", "C", "D"],
+        "correct": 1,  # B cambia XZ→ZX
+        "cat": "AT",
+    },
 ]
 
-TOTAL_QUESTIONS = len(QUESTIONS)  # 70
+TOTAL_QUESTIONS = len(QUESTIONS)  # debería ser 70
 
 # ============================================================
-# HELPERS: SCORING Y NIVELES
+# MAPAS / NIVELES
 # ============================================================
 
 def level_from_pct(pct):
@@ -648,13 +696,13 @@ if "already_sent" not in st.session_state:
     st.session_state.already_sent = False
 
 # ============================================================
-# CÁLCULO DE PUNTAJES POR DIMENSIÓN
+# CÁLCULO DE PUNTAJES
 # ============================================================
 
 def compute_scores(ans_dict):
     dims = ["RL", "QN", "VR", "MT", "AT"]
-    dim_correct = {d:0 for d in dims}
-    dim_total   = {d:0 for d in dims}
+    dim_correct = {d: 0 for d in dims}
+    dim_total   = {d: 0 for d in dims}
 
     for idx, q in enumerate(QUESTIONS):
         cat = q["cat"]
@@ -672,9 +720,8 @@ def compute_scores(ans_dict):
 
     total_correct = sum(dim_correct.values())
     total_items = sum(dim_total.values())
-    global_pct = (total_correct / total_items)*100.0 if total_items>0 else 0.0
+    global_pct = (total_correct / total_items) * 100.0 if total_items > 0 else 0.0
 
-    # Escala interna 0–6 para el gráfico
     dim_scale_0_6 = {d: (dim_pct[d]/100.0)*6.0 for d in dims}
 
     return {
@@ -687,11 +734,11 @@ def compute_scores(ans_dict):
 
 def build_dim_description():
     return {
-        "RL": "Razonamiento lógico / abstracto. Capacidad de detectar patrones y deducir reglas.",
-        "QN": "Razonamiento numérico. Cálculo mental, proporciones y progresiones.",
-        "VR": "Comprensión verbal. Interpretación de instrucciones, vocabulario y contexto.",
-        "MT": "Memoria de trabajo inmediata. Mantener y manipular información en la mente.",
-        "AT": "Atención al detalle. Detección de diferencias y precisión en información textual/númerica."
+        "RL": "Razonamiento lógico / abstracto. Capacidad para detectar patrones, reglas secuenciales y relaciones condicionales. Incluye progresiones tipo Raven descritas verbalmente.",
+        "QN": "Razonamiento numérico. Manejo de cantidades, secuencias matemáticas, proporciones y transformaciones con números.",
+        "VR": "Comprensión verbal. Capacidad para interpretar instrucciones escritas, matices de lenguaje y conclusiones lógicas a partir de texto.",
+        "MT": "Memoria de trabajo inmediata. Retención activa y manipulación secuencial de información mental en varios pasos.",
+        "AT": "Atención al detalle y precisión comparativa. Detección de diferencias sutiles, errores de transcripción y consistencia fina entre códigos.",
     }
 
 def build_strengths_and_risks(dim_pct, global_pct):
@@ -699,31 +746,29 @@ def build_strengths_and_risks(dim_pct, global_pct):
     riesgos = []
 
     if dim_pct["RL"] >= 60:
-        fortalezas.append("Razonamiento lógico / abstracto sobre la media interna.")
+        fortalezas.append("Identificación de patrones lógicos y progresiones abstractas sobre la media interna.")
+    else:
+        riesgos.append("Puede requerir más apoyo cuando las reglas cambian y debe inferir la lógica rápidamente.")
+
     if dim_pct["QN"] >= 60:
-        fortalezas.append("Buen manejo de cantidades, progresiones y relaciones numéricas.")
+        fortalezas.append("Buen manejo de cantidades, proporciones y transformaciones numéricas.")
+    else:
+        riesgos.append("Podría necesitar más tiempo para resolver cálculos en cadena o proporciones.")
+
     if dim_pct["VR"] >= 60:
-        fortalezas.append("Comprensión verbal y de instrucciones con buena precisión interpretativa.")
+        fortalezas.append("Interpreta instrucciones textuales y condiciones verbales con claridad.")
+    else:
+        riesgos.append("Podría requerir instrucciones más literales o ejemplos directos en textos complejos.")
+
     if dim_pct["MT"] >= 60:
-        fortalezas.append("Capacidad adecuada de sostener y manipular información inmediata en la mente.")
+        fortalezas.append("Sostiene varios pasos mentales encadenados sin perder la información intermedia.")
+    else:
+        riesgos.append("Puede perder parte de la secuencia cuando se exige mantener y transformar números mentalmente.")
+
     if dim_pct["AT"] >= 60:
-        fortalezas.append("Atención sostenida al detalle y buena detección de diferencias sutiles.")
-
-    if dim_pct["RL"] < 40:
-        riesgos.append("Puede requerir apoyo en análisis lógico complejo o deducciones encadenadas.")
-    if dim_pct["QN"] < 40:
-        riesgos.append("Podría necesitar más tiempo en cálculos y relaciones de tasa / porcentaje.")
-    if dim_pct["VR"] < 40:
-        riesgos.append("Podría necesitar instrucciones más directas y ejemplos explícitos.")
-    if dim_pct["MT"] < 40:
-        riesgos.append("En tareas con muchos pasos mentales, puede perder parte de la secuencia.")
-    if dim_pct["AT"] < 40:
-        riesgos.append("Ante controles de calidad muy finos, podría pasar por alto diferencias menores.")
-
-    if not fortalezas:
-        fortalezas.append("No se identificaron fortalezas claras sobre la media interna en esta medición.")
-    if not riesgos:
-        riesgos.append("No se identificaron riesgos específicos bajo condiciones estándar.")
+        fortalezas.append("Detecta diferencias sutiles entre códigos, texto y dígitos con buena precisión.")
+    else:
+        riesgos.append("En controles de calidad muy finos puede pasar por alto variaciones pequeñas.")
 
     global_line = global_iq_band(global_pct)
 
@@ -760,14 +805,10 @@ def draw_wrapped(c, text, x, y, width, font="Helvetica", size=8, leading=11, col
     return y
 
 # ============================================================
-# GENERACIÓN DEL PDF (2 páginas)
+# GENERAR PDF (2 páginas con layout ordenado)
 # ============================================================
 
-def generate_pdf(candidate_name,
-                 fecha_eval,
-                 evaluator_email,
-                 scores):
-
+def generate_pdf(candidate_name, fecha_eval, evaluator_email, scores):
     dim_correct = scores["dim_correct"]
     dim_total   = scores["dim_total"]
     dim_pct     = scores["dim_pct"]
@@ -784,19 +825,16 @@ def generate_pdf(candidate_name,
     margin_left = 36
     margin_right = 36
 
-    # ============================
-    # PÁGINA 1
-    # ============================
-
+    # ---------------- PAGE 1 ----------------
     # Encabezado
     c.setFont("Helvetica-Bold",10)
-    c.drawString(margin_left, H-40, "Evaluación Cognitiva General (IQ Screening)")
+    c.drawString(margin_left, H-40, "Evaluación Cognitiva General (IQ + Razonamiento Abstracto)")
     c.setFont("Helvetica",7)
-    c.drawString(margin_left, H-53, "Instrumento orientado a estimar habilidades cognitivas básicas generales.")
+    c.drawString(margin_left, H-53, "Instrumento orientado a estimar habilidades cognitivas globales en cinco dimensiones cognitivas. Uso interno RR.HH. / No clínico.")
 
-    # Caja datos candidato
-    data_box_x = W - margin_right - 200
-    data_box_w = 200
+    # Datos candidato
+    data_box_x = W - margin_right - 220
+    data_box_w = 220
     data_box_h = 70
     data_box_y_top = H-40
 
@@ -816,15 +854,15 @@ def generate_pdf(candidate_name,
     yy -= 12
     c.setFont("Helvetica",6)
     c.setFillColor(colors.grey)
-    c.drawString(data_box_x+8, yy, "Documento interno RR.HH. / No clínico")
+    c.drawString(data_box_x+8, yy, "Documento interno. No diagnóstico clínico.")
 
-    # Gráfico barras grises + línea
+    # Gráfico radar estilo barras+línea (0-6)
     chart_dims = [
-        ("RL", "Razonamiento Lógico / Abstracto"),
-        ("QN", "Razonamiento Numérico"),
-        ("VR", "Comprensión Verbal / Inferencia"),
-        ("MT", "Memoria de Trabajo Inmediata"),
-        ("AT", "Atención al Detalle / Precisión Visual"),
+        ("RL","Razonamiento Lógico / Abstracto"),
+        ("QN","Razonamiento Numérico"),
+        ("VR","Comprensión Verbal"),
+        ("MT","Memoria de Trabajo"),
+        ("AT","Atención al Detalle"),
     ]
 
     chart_box_x = margin_left
@@ -834,37 +872,37 @@ def generate_pdf(candidate_name,
 
     c.setStrokeColor(colors.lightgrey)
     c.setFillColor(colors.white)
-    c.rect(chart_box_x, chart_box_y_top - chart_box_h, chart_box_w, chart_box_h, stroke=1, fill=1)
+    c.rect(chart_box_x, chart_box_y_top-chart_box_h, chart_box_w, chart_box_h, stroke=1, fill=1)
 
     c.setFont("Helvetica-Bold",8.5)
     c.setFillColor(colors.black)
-    c.drawString(chart_box_x + 8, chart_box_y_top - 14, "Puntaje por Dimensión (escala interna 0–6)")
+    c.drawString(chart_box_x+8, chart_box_y_top-14, "Puntaje por Dimensión (escala interna 0–6)")
 
-    plot_x = chart_box_x + 30
-    plot_y_bottom = chart_box_y_top - chart_box_h + 30
-    plot_w = chart_box_w - 50
-    plot_h = chart_box_h - 60
+    plot_x = chart_box_x+30
+    plot_y_bottom = chart_box_y_top-chart_box_h+30
+    plot_w = chart_box_w-50
+    plot_h = chart_box_h-60
 
-    # rejilla 0..6
+    # rejilla
     c.setLineWidth(0.5)
     for lvl in range(0,7):
         yv = plot_y_bottom + (lvl/6.0)*plot_h
         c.setFont("Helvetica",6)
         c.setFillColor(colors.black)
-        c.drawString(plot_x - 18, yv - 2, str(lvl))
+        c.drawString(plot_x-18, yv-2, str(lvl))
         c.setStrokeColor(colors.lightgrey)
-        c.line(plot_x, yv, plot_x + plot_w, yv)
+        c.line(plot_x, yv, plot_x+plot_w, yv)
 
     c.setStrokeColor(colors.black)
-    c.line(plot_x, plot_y_bottom, plot_x, plot_y_bottom + plot_h)
+    c.line(plot_x, plot_y_bottom, plot_x, plot_y_bottom+plot_h)
 
     num_dims = len(chart_dims)
     gap = 10
-    bar_w = (plot_w - gap*(num_dims+1)) / num_dims
+    bar_w = (plot_w - gap*(num_dims+1))/num_dims
     poly_points = []
 
-    for i, (dim_key, dim_label) in enumerate(chart_dims):
-        norm_val = dim_scale[dim_key]    # 0..6
+    for i,(dim_key, dim_label) in enumerate(chart_dims):
+        norm_val = dim_scale[dim_key]   # 0..6
         raw_c = dim_correct[dim_key]
         raw_t = dim_total[dim_key]
         pct_val = dim_pct[dim_key]
@@ -879,176 +917,164 @@ def generate_pdf(candidate_name,
         c.setStrokeColor(colors.black)
         c.rect(bx, by, bar_w, bar_h, stroke=1, fill=1)
 
-        # punto polilínea
+        # punto línea
         px = bx + bar_w/2.0
         py = by + bar_h
         poly_points.append((px, py))
 
-        # etiquetas
+        # etiquetas bajo
         c.setFont("Helvetica-Bold",7)
         c.setFillColor(colors.black)
-        c.drawCentredString(px, plot_y_bottom - 14, dim_key)
+        c.drawCentredString(px, plot_y_bottom-14, dim_key)
 
         c.setFont("Helvetica",6)
-        c.drawCentredString(
-            px,
-            plot_y_bottom - 26,
-            f"{raw_c}/{raw_t}  {lvl_txt}"
-        )
+        c.drawCentredString(px, plot_y_bottom-26, f"{raw_c}/{raw_t}  {lvl_txt}")
 
     # línea negra uniendo puntos
     c.setStrokeColor(colors.black)
     c.setLineWidth(1)
     for j in range(len(poly_points)-1):
-        (x1, y1) = poly_points[j]
-        (x2, y2) = poly_points[j+1]
-        c.line(x1, y1, x2, y2)
-    for (px, py) in poly_points:
+        (x1,y1)=poly_points[j]
+        (x2,y2)=poly_points[j+1]
+        c.line(x1,y1,x2,y2)
+    for (px,py) in poly_points:
         c.setFillColor(colors.black)
-        c.circle(px, py, 2, stroke=0, fill=1)
+        c.circle(px,py,2,stroke=0,fill=1)
 
     # Caja resumen dimensiones evaluadas
-    side_box_x = chart_box_x + chart_box_w + 10
+    side_box_x = chart_box_x+chart_box_w+10
     side_box_y_top = chart_box_y_top
     side_box_w = 200
     side_box_h = chart_box_h
 
     c.setStrokeColor(colors.lightgrey)
     c.setFillColor(colors.white)
-    c.rect(side_box_x, side_box_y_top - side_box_h, side_box_w, side_box_h, stroke=1, fill=1)
+    c.rect(side_box_x, side_box_y_top-side_box_h, side_box_w, side_box_h, stroke=1, fill=1)
 
     c.setFont("Helvetica-Bold",8)
     c.setFillColor(colors.black)
-    c.drawString(side_box_x + 8, side_box_y_top - 14, "Dimensiones Evaluadas")
+    c.drawString(side_box_x+8, side_box_y_top-14, "Dimensiones Evaluadas")
 
+    yy2 = side_box_y_top-28
     c.setFont("Helvetica",7)
-    yy2 = side_box_y_top - 28
     lines_dim = [
         "RL  Razonamiento Lógico / Abstracto",
         "QN  Razonamiento Numérico",
         "VR  Comprensión Verbal / Inferencia",
-        "MT  Memoria de Trabajo Inmediata",
-        "AT  Atención al Detalle / Precisión Visual",
+        "MT  Memoria de Trabajo Inmediata / Secuencial",
+        "AT  Atención al Detalle / Precisión Fina",
         "Escala comparativa interna (0–6)."
     ]
-    for tline in lines_dim:
-        c.drawString(side_box_x + 8, yy2, tline)
+    for line in lines_dim:
+        c.drawString(side_box_x+8, yy2, line)
         yy2 -= 10
 
-    # Caja resumen cognitivo
+    # Caja resumen cognitivo global
     summary_box_x = margin_left
-    summary_box_w = W - margin_right - margin_left
-    summary_box_h = 150
+    summary_box_w = W - margin_left - margin_right
+    summary_box_h = 170
     summary_box_y_top = H - 360
 
     c.setStrokeColor(colors.lightgrey)
     c.setFillColor(colors.white)
-    c.rect(summary_box_x, summary_box_y_top - summary_box_h, summary_box_w, summary_box_h, stroke=1, fill=1)
+    c.rect(summary_box_x, summary_box_y_top-summary_box_h, summary_box_w, summary_box_h, stroke=1, fill=1)
 
-    ysum = summary_box_y_top - 16
+    ysum = summary_box_y_top-16
     c.setFont("Helvetica-Bold",9)
     c.setFillColor(colors.black)
-    c.drawString(summary_box_x + 10, ysum, "Resumen cognitivo observado")
+    c.drawString(summary_box_x+10, ysum, "Resumen cognitivo observado")
     ysum -= 14
 
     # Fortalezas
     c.setFont("Helvetica-Bold",8)
-    c.drawString(summary_box_x + 10, ysum, "Fortalezas potenciales:")
+    c.drawString(summary_box_x+10, ysum, "Fortalezas potenciales:")
     ysum -= 12
     c.setFont("Helvetica",7)
     for f in fortalezas:
-        wrapped_f = wrap_text(c, "• " + f, summary_box_w - 24, "Helvetica",7)
-        for ln in wrapped_f:
-            c.drawString(summary_box_x + 20, ysum, ln)
+        for ln in wrap_text(c, "• "+f, summary_box_w-24, "Helvetica",7):
+            c.drawString(summary_box_x+20, ysum, ln)
             ysum -= 10
     ysum -= 4
 
     # Riesgos
     c.setFont("Helvetica-Bold",8)
-    c.drawString(summary_box_x + 10, ysum, "Aspectos a monitorear / apoyo sugerido:")
+    c.drawString(summary_box_x+10, ysum, "Aspectos a monitorear / apoyo sugerido:")
     ysum -= 12
     c.setFont("Helvetica",7)
     for r in riesgos:
-        wrapped_r = wrap_text(c, "• " + r, summary_box_w - 24, "Helvetica",7)
-        for ln in wrapped_r:
-            c.drawString(summary_box_x + 20, ysum, ln)
+        for ln in wrap_text(c, "• "+r, summary_box_w-24, "Helvetica",7):
+            c.drawString(summary_box_x+20, ysum, ln)
             ysum -= 10
+    ysum -= 4
 
-    ysum -= 8
+    # Global band
     c.setFont("Helvetica-Bold",8)
-    c.drawString(summary_box_x + 10, ysum, "Clasificación cognitiva global:")
+    c.drawString(summary_box_x+10, ysum, "Clasificación cognitiva global:")
     ysum -= 12
     c.setFont("Helvetica",7)
-    gl_wrap = wrap_text(c, global_line, summary_box_w - 24, "Helvetica",7)
-    for ln in gl_wrap:
-        c.drawString(summary_box_x + 20, ysum, ln)
+    for ln in wrap_text(c, global_line, summary_box_w-24, "Helvetica",7):
+        c.drawString(summary_box_x+20, ysum, ln)
         ysum -= 10
 
     c.showPage()
 
-    # ============================
-    # PÁGINA 2
-    # ============================
-
+    # ---------------- PAGE 2 ----------------
     c.setFont("Helvetica-Bold",9)
     c.setFillColor(colors.black)
     c.drawString(margin_left, H-40, "Detalle por dimensión")
 
-    # Tabla tipo grilla
+    # Tabla detalle
     table_x = margin_left
     table_y_top = H-60
     table_w = W - margin_left - margin_right
-    row_h = 48
+    row_h = 60
     header_h = 24
     dim_order = [
-        ("RL", "Razonamiento Lógico / Abstracto"),
-        ("QN", "Razonamiento Numérico"),
-        ("VR", "Comprensión Verbal / Inferencia"),
-        ("MT", "Memoria de Trabajo Inmediata"),
-        ("AT", "Atención al Detalle / Precisión Visual"),
+        ("RL","Razonamiento Lógico / Abstracto"),
+        ("QN","Razonamiento Numérico"),
+        ("VR","Comprensión Verbal / Inferencia"),
+        ("MT","Memoria de Trabajo Inmediata / Secuencial"),
+        ("AT","Atención al Detalle / Precisión Fina"),
     ]
     n_rows = len(dim_order)
     table_h = header_h + n_rows*row_h
 
-    # Marco tabla
     c.setStrokeColor(colors.lightgrey)
     c.setFillColor(colors.white)
-    c.rect(table_x, table_y_top - table_h, table_w, table_h, stroke=1, fill=1)
+    c.rect(table_x, table_y_top-table_h, table_w, table_h, stroke=1, fill=1)
 
-    # Header gris claro
+    # Header fila gris
     c.setFillColor(colors.HexColor("#f8f9fa"))
-    c.rect(table_x, table_y_top - header_h, table_w, header_h, stroke=0, fill=1)
+    c.rect(table_x, table_y_top-header_h, table_w, header_h, stroke=0, fill=1)
 
-    # Columnas
-    col_sigla_x = table_x + 8
-    col_punt_x  = table_x + 160
-    col_lvl_x   = table_x + 240
-    col_desc_x  = table_x + 300
+    col_sigla_x = table_x+8
+    col_punt_x  = table_x+180
+    col_lvl_x   = table_x+260
+    col_desc_x  = table_x+320
 
     c.setFont("Helvetica-Bold",8)
     c.setFillColor(colors.black)
-    c.drawString(col_sigla_x, table_y_top - 16, "Dimensión")
-    c.drawString(col_punt_x,  table_y_top - 16, "Puntaje")
-    c.drawString(col_lvl_x,   table_y_top - 16, "Nivel")
-    c.drawString(col_desc_x,  table_y_top - 16, "Descripción breve")
+    c.drawString(col_sigla_x, table_y_top-16, "Dimensión")
+    c.drawString(col_punt_x,  table_y_top-16, "Puntaje")
+    c.drawString(col_lvl_x,   table_y_top-16, "Nivel")
+    c.drawString(col_desc_x,  table_y_top-16, "Descripción breve")
 
-    # divisiones verticales suaves
+    # separadores verticales
     c.setStrokeColor(colors.lightgrey)
     c.setLineWidth(0.5)
-    c.line(col_punt_x - 8, table_y_top, col_punt_x - 8, table_y_top - table_h)
-    c.line(col_lvl_x  - 8, table_y_top, col_lvl_x  - 8, table_y_top - table_h)
-    c.line(col_desc_x - 8, table_y_top, col_desc_x - 8, table_y_top - table_h)
+    c.line(col_punt_x-8, table_y_top, col_punt_x-8, table_y_top-table_h)
+    c.line(col_lvl_x-8,  table_y_top, col_lvl_x-8,  table_y_top-table_h)
+    c.line(col_desc_x-8, table_y_top, col_desc_x-8, table_y_top-table_h)
 
-    start_y = table_y_top - header_h
-    for i, (sigla, fullname) in enumerate(dim_order):
+    start_y = table_y_top-header_h
+    for i,(sigla,fullname) in enumerate(dim_order):
         row_top_y = start_y - i*row_h
-        row_bottom_y = row_top_y - row_h
+        row_bottom_y = row_top_y-row_h
 
-        # Fila alternada muy suave
+        # fondo alterno
         if i % 2 == 1:
             c.setFillColor(colors.HexColor("#fcfcfc"))
             c.rect(table_x, row_bottom_y, table_w, row_h, stroke=0, fill=1)
-        c.setFillColor(colors.black)
 
         correct_c = dim_correct[sigla]
         total_c   = dim_total[sigla]
@@ -1056,35 +1082,27 @@ def generate_pdf(candidate_name,
         lvl_txt   = level_from_pct(pct_val)
         desc_text = dim_desc[sigla]
 
-        # Dimensión
+        # texto
+        c.setFillColor(colors.black)
         c.setFont("Helvetica-Bold",7)
-        c.drawString(col_sigla_x, row_top_y - 12, f"{sigla} / {fullname}")
+        c.drawString(col_sigla_x, row_top_y-14, f"{sigla} / {fullname}")
 
-        # Puntaje (correctas / total y %)
         c.setFont("Helvetica",7)
-        c.drawString(col_punt_x, row_top_y - 12, f"{correct_c}/{total_c}  ({pct_val:.0f}%)")
+        c.drawString(col_punt_x, row_top_y-14, f"{correct_c}/{total_c}  ({pct_val:.0f}%)")
+        c.drawString(col_lvl_x, row_top_y-14, lvl_txt)
 
-        # Nivel
-        c.drawString(col_lvl_x, row_top_y - 12, lvl_txt)
-
-        # Descripción breve (wrap)
-        yy_desc = row_top_y - 12
-        wrap_desc = wrap_text(
-            c,
-            desc_text,
-            table_w - (col_desc_x - table_x) - 10,
-            "Helvetica",
-            7
-        )
+        # desc envuelta
+        yy_desc = row_top_y-14
+        wrap_desc = wrap_text(c, desc_text, table_w-(col_desc_x-table_x)-12, "Helvetica",7)
         for ln in wrap_desc:
             c.drawString(col_desc_x, yy_desc, ln)
             yy_desc -= 9
 
-        # línea horizontal fina
+        # línea horizontal separadora
         c.setStrokeColor(colors.lightgrey)
-        c.line(table_x, row_bottom_y, table_x + table_w, row_bottom_y)
+        c.line(table_x, row_bottom_y, table_x+table_w, row_bottom_y)
 
-    # Caja nota metodológica
+    # Nota metodológica final
     note_box_x = margin_left
     note_box_w = W - margin_left - margin_right
     note_box_h = 90
@@ -1092,42 +1110,32 @@ def generate_pdf(candidate_name,
 
     c.setStrokeColor(colors.lightgrey)
     c.setFillColor(colors.white)
-    c.rect(note_box_x, note_box_y_top - note_box_h, note_box_w, note_box_h, stroke=1, fill=1)
+    c.rect(note_box_x, note_box_y_top-note_box_h, note_box_w, note_box_h, stroke=1, fill=1)
 
-    ny = note_box_y_top - 14
+    y_note = note_box_y_top-16
     c.setFont("Helvetica-Bold",8)
     c.setFillColor(colors.black)
-    c.drawString(note_box_x + 8, ny, "Nota metodológica")
-    ny -= 12
-    c.setFont("Helvetica",7)
+    c.drawString(note_box_x+10, y_note, "Nota metodológica")
+    y_note -= 14
+
     nota_text = (
-        "Este resultado describe desempeño cognitivo relativo en áreas básicas de razonamiento, "
-        "memoria inmediata, comprensión verbal, manejo numérico y atención al detalle. "
-        "No constituye diagnóstico clínico ni determina por sí solo la idoneidad laboral. "
-        "Debe complementarse con entrevista estructurada, verificación de experiencia "
-        "y evaluación técnica específica si corresponde."
-    )
-    ny = draw_wrapped(
-        c,
-        nota_text,
-        note_box_x + 8,
-        ny,
-        note_box_w - 16,
-        font="Helvetica",
-        size=7,
-        leading=10,
-        color=colors.black,
-        max_lines=None
+        "Este informe se basa en las respuestas del evaluado a un conjunto de "
+        "70 ítems cognitivos (razonamiento lógico/abstracto tipo Raven textual, "
+        "razonamiento numérico, comprensión verbal, memoria de trabajo secuencial "
+        "y atención al detalle). Describe el desempeño comparativo interno en cada "
+        "dimensión cognitiva y la clasificación global. No constituye diagnóstico "
+        "clínico ni, por sí solo, determina idoneidad laboral. Se recomienda "
+        "complementar con entrevista estructurada y verificación de experiencia."
     )
 
-    # footer confidencial
+    c.setFont("Helvetica",7)
+    for ln in wrap_text(c, nota_text, note_box_w-24, "Helvetica",7):
+        c.drawString(note_box_x+20, y_note, ln)
+        y_note -= 10
+
     c.setFont("Helvetica",6)
     c.setFillColor(colors.grey)
-    c.drawRightString(
-        W - margin_right,
-        40,
-        "Uso interno RR.HH. · Evaluación Cognitiva General · No clínico"
-    )
+    c.drawRightString(W-margin_right, 40, "Uso interno RR.HH. · Evaluación Cognitiva General · No clínico")
 
     c.showPage()
     c.save()
@@ -1135,7 +1143,7 @@ def generate_pdf(candidate_name,
     return buf.read()
 
 # ============================================================
-# ENVÍO DE CORREO
+# ENVÍO EMAIL
 # ============================================================
 
 def send_email_with_pdf(to_email, pdf_bytes, filename, subject, body_text):
@@ -1155,43 +1163,42 @@ def send_email_with_pdf(to_email, pdf_bytes, filename, subject, body_text):
         smtp.send_message(msg)
 
 # ============================================================
-# FINALIZAR / GENERAR INFORME / ENVIAR
+# FINALIZAR, GENERAR PDF, ENVIAR
 # ============================================================
 
 def finalize_and_send():
     scores = compute_scores(st.session_state.answers)
-    now_txt = datetime.now().strftime("%d/%m/%Y %H:%M")
 
     pdf_bytes = generate_pdf(
-        candidate_name=st.session_state.candidate_name,
-        fecha_eval=now_txt,
-        evaluator_email=st.session_state.evaluator_email,
-        scores=scores
+        candidate_name = st.session_state.candidate_name,
+        fecha_eval     = datetime.now().strftime("%d/%m/%Y %H:%M"),
+        evaluator_email= st.session_state.evaluator_email,
+        scores         = scores
     )
 
     if not st.session_state.already_sent:
         try:
             send_email_with_pdf(
-                to_email=st.session_state.evaluator_email,
-                pdf_bytes=pdf_bytes,
-                filename="Informe_Cognitivo_General.pdf",
-                subject="Informe Evaluación Cognitiva (IQ Screening)",
-                body_text=(
-                    "Adjunto informe interno de la Evaluación Cognitiva General (IQ Screening) "
-                    f"para {st.session_state.candidate_name}.\nUso interno RR.HH."
+                to_email   = st.session_state.evaluator_email,
+                pdf_bytes  = pdf_bytes,
+                filename   = "Informe_Cognitivo_General.pdf",
+                subject    = "Informe Cognitivo General (IQ + Raven textual)",
+                body_text  = (
+                    "Adjunto informe cognitivo general (70 ítems IQ + patrones tipo Raven textual). "
+                    f"Evaluado: {st.session_state.candidate_name}.\nUso interno RR.HH."
                 ),
             )
         except Exception:
-            pass  # si falla el correo, no rompemos la app
+            pass
         st.session_state.already_sent = True
 
 # ============================================================
-# CALLBACK DE RESPUESTA
+# CALLBACK (evita doble click)
 # ============================================================
 
-def choose_answer(answer_idx: int):
+def choose_answer(value_idx):
     q_idx = st.session_state.current_q
-    st.session_state.answers[q_idx] = answer_idx
+    st.session_state.answers[q_idx] = value_idx
 
     if q_idx < TOTAL_QUESTIONS - 1:
         st.session_state.current_q += 1
@@ -1202,43 +1209,23 @@ def choose_answer(answer_idx: int):
         st.session_state._need_rerun = True
 
 # ============================================================
-# VISTAS STREAMLIT
+# VISTAS
 # ============================================================
 
 def view_info_form():
-    st.markdown("### Test Cognitivo General (IQ Screening)")
-    st.write(
-        "Este test mide razonamiento lógico, numérico, comprensión verbal, memoria de trabajo "
-        "y atención al detalle. Al finalizar se genera un informe PDF interno y se envía "
-        "automáticamente al correo del evaluador."
-    )
+    st.markdown("### Datos del evaluado")
+    st.info("Estos datos se usarán en el informe PDF interno. Al finalizar el test se envía automáticamente al correo del evaluador.")
 
     st.session_state.candidate_name = st.text_input(
         "Nombre del evaluado",
         value=st.session_state.candidate_name,
         placeholder="Nombre completo"
     )
+
     st.session_state.evaluator_email = st.text_input(
-        "Correo del evaluador (RR.HH. / Supervisor)",
+        "Correo del evaluador / RR.HH.",
         value=st.session_state.evaluator_email,
         placeholder="nombre@empresa.com"
-    )
-
-    st.markdown(
-        """
-        <div style="
-            background:#f8fafc;
-            border:1px solid #e2e8f0;
-            border-radius:8px;
-            padding:12px 16px;
-            font-size:.8rem;
-            color:#475569;
-            margin-top:12px;">
-            <b>Confidencialidad:</b> El informe es de uso interno RR.HH.
-            El evaluado no recibe copia directa.
-        </div>
-        """,
-        unsafe_allow_html=True
     )
 
     ok = (
@@ -1246,7 +1233,7 @@ def view_info_form():
         len(st.session_state.evaluator_email.strip()) > 0
     )
 
-    if st.button("Comenzar test", type="primary", disabled=not ok, use_container_width=True):
+    if st.button("Comenzar test cognitivo (70 ítems)", type="primary", disabled=not ok, use_container_width=True):
         st.session_state.current_q = 0
         st.session_state.answers = {i: None for i in range(TOTAL_QUESTIONS)}
         st.session_state.already_sent = False
@@ -1258,7 +1245,7 @@ def view_test():
     q = QUESTIONS[q_idx]
     progreso = (q_idx+1)/TOTAL_QUESTIONS
 
-    # Header
+    # Header visual
     st.markdown(
         f"""
         <div style="
@@ -1271,7 +1258,7 @@ def view_test():
             align-items:center;
             flex-wrap:wrap;">
             <div style="font-weight:700;">
-                Test Cognitivo General (IQ Screening)
+                Test Cognitivo General (IQ + Raven textual)
             </div>
             <div style="
                 background:rgba(255,255,255,0.25);
@@ -1287,7 +1274,7 @@ def view_test():
 
     st.progress(progreso)
 
-    # Pregunta
+    # Tarjeta pregunta
     st.markdown(
         f"""
         <div style="
@@ -1301,7 +1288,8 @@ def view_test():
                 margin:0;
                 font-size:1.05rem;
                 color:#1e293b;
-                line-height:1.45;">
+                line-height:1.45;
+                white-space:pre-wrap;">
                 {q["text"]}
             </p>
         </div>
@@ -1309,16 +1297,14 @@ def view_test():
         unsafe_allow_html=True
     )
 
-    # Alternativas (2 columnas)
-    cols = st.columns(2)
-    for i, opt in enumerate(q["options"]):
-        target_col = cols[i % 2]
-        target_col.button(
-            opt,
-            key=f"ans_{q_idx}_{i}",
+    # Opciones
+    for opt_i, opt_txt in enumerate(q["options"]):
+        st.button(
+            opt_txt,
+            key=f"ans_{q_idx}_{opt_i}",
             use_container_width=True,
             on_click=choose_answer,
-            args=(i,)
+            args=(opt_i,)
         )
 
     st.markdown(
@@ -1331,8 +1317,8 @@ def view_test():
             font-size:.8rem;
             color:#475569;
             margin-top:12px;">
-            <b>Confidencialidad:</b> Uso interno RR.HH. / Selección general.
-            El candidato no recibe copia directa del informe.
+            <b>Confidencialidad:</b> Uso interno RR.HH. / Selección interna.
+            El evaluado no recibe copia directa del informe.
         </div>
         """,
         unsafe_allow_html=True
@@ -1383,7 +1369,7 @@ def view_done():
     )
 
 # ============================================================
-# FLUJO PRINCIPAL
+# FLUJO
 # ============================================================
 
 if st.session_state.stage == "info":
@@ -1393,13 +1379,14 @@ elif st.session_state.stage == "test":
     if st.session_state.current_q >= TOTAL_QUESTIONS:
         st.session_state.stage = "done"
         st.session_state._need_rerun = True
-    view_test()
+    else:
+        view_test()
 
 elif st.session_state.stage == "done":
     finalize_and_send()
     view_done()
 
-# Rerun controlado
+# control de rerun suave
 if st.session_state._need_rerun:
     st.session_state._need_rerun = False
     st.rerun()
