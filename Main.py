@@ -1,7 +1,20 @@
 # ============================================================
-# Evaluación Cognitiva General (IQ Operativo Adaptado)
-# 70 preguntas · 5 dimensiones · Informe PDF de 2 páginas
-# Envío automático por correo al evaluador
+# TEST COGNITIVO GENERAL (IQ Adaptado) · 70 ítems
+# - Sin referencia a cargos / áreas específicas
+# - Preguntas 100% cognitivas (lógico-numéricas, atención, memoria, decisión)
+# - Dificultad incremental
+# - 5 dimensiones: RL / AT / VD / MT / CI
+# - Informe PDF en 2 páginas, ordenado, con cajas y sin texto encima
+# - Envío automático por correo al terminar
+# - Pantalla final sólo muestra "Evaluación finalizada"
+#
+# Requisitos:
+#   pip install streamlit reportlab
+#
+# IMPORTANTE:
+#   Para envío de correo automático con Gmail necesitas:
+#   - Activar "contraseña de aplicación"
+#   - Cambiar FROM_ADDR y APP_PASS acá abajo
 # ============================================================
 
 import streamlit as st
@@ -10,670 +23,620 @@ from io import BytesIO
 import smtplib
 from email.message import EmailMessage
 
-# PDF
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 from reportlab.lib import colors
+
 
 # ------------------------------------------------------------
 # CONFIG STREAMLIT
 # ------------------------------------------------------------
 st.set_page_config(
-    page_title="Evaluación Cognitiva General",
+    page_title="Evaluación Cognitiva General (IQ Adaptado)",
     page_icon="🧠",
     layout="centered",
-    initial_sidebar_state="collapsed",
+    initial_sidebar_state="collapsed"
 )
 
 # ------------------------------------------------------------
-# CREDENCIALES DE CORREO
+# CREDENCIALES DE CORREO (usa tus credenciales válidas)
 # ------------------------------------------------------------
 FROM_ADDR = "jo.tajtaj@gmail.com"
-APP_PASS  = "nlkt kujl ebdg cyts"
+APP_PASS  = "nlkt kujl ebdg cyts"   # <-- tu pass de aplicación Gmail
+
 
 # ------------------------------------------------------------
-# BANCO DE PREGUNTAS (70 ítems)
-# Cada pregunta:
-#   "text": enunciado
-#   "options": lista de 4 alternativas
-#   "correct": índice (0..3) de la alternativa correcta
-#   "dim": RL / AT / VD / MT / CI
-#
-# RL = Razonamiento Lógico / Secuencias
-# AT = Atención al Detalle / Precisión
-# VD = Velocidad de Decisión / Juicio rápido
-# MT = Memoria de Trabajo / Retención inmediata
-# CI = Comprensión de Instrucciones / Lectura Operativa
-#
-# 14 preguntas por dimensión = 70 total
-# SIN imágenes, todo texto.
+# BANCO DE PREGUNTAS (70 ítems totales)
+# 5 dimensiones x 14 ítems cada una:
+# RL = Razonamiento Lógico
+# AT = Atención al Detalle
+# VD = Velocidad de Decisión
+# MT = Memoria de Trabajo
+# CI = Comprensión de Instrucciones
+# ------------------------------------------------------------
 
 QUESTIONS = [
-    # ---------------- RL (Razonamiento Lógico / Secuencias) ----------------
+    # =========================
+    # RL · Razonamiento Lógico
+    # =========================
     {
-        "text": "Serie: 2, 4, 8, 16, 32, ... ¿Cuál sigue?",
-        "options": ["48", "54", "64", "62"],
-        "correct": 2,
+        "text": "Serie: 1, 2, 3, 4, ... ¿Cuál sigue?",
+        "options": ["5", "6", "8", "10"],
+        "correct": 0,
         "dim": "RL",
     },
     {
-        "text": "Serie: 5, 8, 11, 14, ... ¿Cuál sigue?",
-        "options": ["16", "17", "18", "19"],
+        "text": "Serie: 2, 4, 6, 8, ... ¿Cuál sigue?",
+        "options": ["9", "10", "12", "14"],
         "correct": 1,
+        "dim": "RL",
+    },
+    {
+        "text": "Serie: 3, 6, 12, 24, ... ¿Cuál sigue?",
+        "options": ["36", "48", "30", "12"],
+        "correct": 1,
+        "dim": "RL",
+    },
+    {
+        "text": "Serie: 10, 9, 7, 4, ... ¿Cuál sigue?",
+        "options": ["0", "1", "2", "3"],
+        "correct": 2,
         "dim": "RL",
     },
     {
         "text": "Si A > B y B > C, entonces:",
-        "options": ["A < C", "A = C", "A > C", "No se sabe"],
+        "options": ["A < C", "A = C", "A > C", "No se puede saber"],
         "correct": 2,
         "dim": "RL",
     },
     {
-        "text": "Un operario arma 4 cajas en 10 min. ¿Cuántas cajas en 30 min?",
-        "options": ["8", "10", "12", "14"],
-        "correct": 2,
-        "dim": "RL",
-    },
-    {
-        "text": "Un lote tiene 24 piezas. Cada caja lleva 6 piezas. ¿Cuántas cajas completas?",
-        "options": ["2", "3", "4", "6"],
-        "correct": 2,
-        "dim": "RL",
-    },
-    {
-        "text": "Si hoy es miércoles, ¿qué día será en 3 días más?",
-        "options": ["Sábado", "Viernes", "Domingo", "Lunes"],
-        "correct": 0,
-        "dim": "RL",
-    },
-    {
-        "text": "Completa la secuencia: 10, 7, 4, 1, ...",
-        "options": ["-1", "0", "-2", "2"],
-        "correct": 2,
-        "dim": "RL",
-    },
-    {
-        "text": "Una máquina hace 12 piezas cada 6 minutos. ¿Cuántas hace en 30 minutos?",
-        "options": ["50", "54", "60", "62"],
-        "correct": 2,
-        "dim": "RL",
-    },
-    {
-        "text": "Si todos los A son B y todos los B son C, entonces todos los A son:",
-        "options": ["C", "A", "B", "ninguno"],
-        "correct": 0,
-        "dim": "RL",
-    },
-    {
-        "text": "Secuencia: rojo, azul, rojo, azul, rojo, ... ¿qué sigue?",
-        "options": ["azul", "rojo", "verde", "no se sabe"],
-        "correct": 0,
-        "dim": "RL",
-    },
-    {
-        "text": "3 trabajadores hacen 3 cajas en 3 minutos. ¿Cuántas cajas hacen 6 trabajadores en 3 minutos?",
-        "options": ["3", "6", "9", "12"],
+        "text": "Si 4 cajas pesan lo mismo que 1 bloque, y 2 bloques pesan 40 kg, ¿cuánto pesan 2 cajas?",
+        "options": ["5 kg", "10 kg", "20 kg", "40 kg"],
         "correct": 1,
         "dim": "RL",
     },
     {
-        "text": "20 → 17 → 14 → 11 → ... ¿Cuál sigue?",
-        "options": ["10", "9", "8", "7"],
+        "text": "Completa: 5 → 10 → 20 → 40 → ...",
+        "options": ["60", "70", "80", "100"],
+        "correct": 2,
+        "dim": "RL",
+    },
+    {
+        "text": "Si ‘X’ es mayor que ‘Y’ y ‘Y’ es mayor que ‘Z’, ¿quién es el más pequeño?",
+        "options": ["X", "Y", "Z", "No se sabe"],
+        "correct": 2,
+        "dim": "RL",
+    },
+    {
+        "text": "Proporción: 2 es a 6 como 5 es a ____",
+        "options": ["10", "12", "15", "20"],
+        "correct": 2,
+        "dim": "RL",
+    },
+    {
+        "text": "Si hoy es lunes y pasan 5 días, ¿qué día será?",
+        "options": ["Viernes", "Sábado", "Domingo", "Jueves"],
+        "correct": 1,
+        "dim": "RL",
+    },
+    {
+        "text": "Serie: 11, 14, 17, 20, ... ¿Cuál sigue?",
+        "options": ["21", "22", "23", "24"],
         "correct": 3,
         "dim": "RL",
     },
     {
-        "text": "Un pallet tiene 4 filas con 9 cajas cada una. ¿Cuántas cajas totales?",
-        "options": ["13", "36", "45", "36 más 1"],
+        "text": "Si todos los R son T y todos los T son P, entonces todos los R son:",
+        "options": ["P", "R", "T", "Nada se puede concluir"],
+        "correct": 0,
+        "dim": "RL",
+    },
+    {
+        "text": "Si un número se multiplica por 3 y luego se le suma 2 da 17. ¿Cuál era el número inicial?",
+        "options": ["4", "5", "6", "7"],
         "correct": 1,
         "dim": "RL",
     },
     {
-        "text": "Un turno termina a las 17:30 y dura 8 horas exactas. ¿A qué hora comenzó?",
-        "options": ["9:30", "8:30", "7:30", "10:30"],
-        "correct": 0,
+        "text": "Secuencia: 30, 27, 24, 21, ... ¿Cuál sigue?",
+        "options": ["20", "18", "15", "12"],
+        "correct": 1,
         "dim": "RL",
     },
 
-    # ---------------- AT (Atención al Detalle / Precisión) ----------------
+    # =========================
+    # AT · Atención al Detalle
+    # =========================
     {
-        "text": "Revisa: 'AB-9124' vs 'AB-9214'. ¿Son iguales?",
-        "options": ["Sí, son iguales", "No, cambian 1 y 2", "No, cambian 9 y 2", "No, cambian 2 y 1 de lugar"],
-        "correct": 1,
-        "dim": "AT",
-    },
-    {
-        "text": "En la orden dice 'pieza #7716'. Se prepara 'pieza #7761'. ¿Coinciden?",
-        "options": ["Sí", "No, están invertidos 1 y 6", "No, cambió el 7", "No, todo distinto"],
-        "correct": 1,
-        "dim": "AT",
-    },
-    {
-        "text": "Si una tabla dice '221.45 mm' y otra dice '221.54 mm', la diferencia está en:",
-        "options": ["Las centenas", "Las decenas", "Las centésimas", "Las milésimas"],
-        "correct": 2,
-        "dim": "AT",
-    },
-    {
-        "text": "Tolerancia máxima 2 mm. La pieza está 1.8 mm fuera. ¿Está aceptable?",
-        "options": ["Sí, está dentro", "No, está fuera", "No se puede saber", "Depende del color"],
+        "text": "¿Estos dos códigos son iguales? 'AB-9124' vs 'AB-9124'",
+        "options": ["Sí", "No, cambia un dígito", "No, cambia el guión", "No, cambia el orden"],
         "correct": 0,
         "dim": "AT",
     },
     {
-        "text": "Comparar códigos: 'Lote-5B7Q' vs 'Lote-5B7O'. ¿Coinciden?",
-        "options": ["Sí", "No, Q y O son distintas", "No, cambia el 5", "No, B y 7 cambian"],
+        "text": "¿Estos dos códigos son iguales? 'ZX-781' vs 'ZX-871'",
+        "options": ["Sí", "No, 8 y 7 están invertidos", "No, cambia 81 por 71", "No, cambia el orden de 7 y 8"],
+        "correct": 3,
+        "dim": "AT",
+    },
+    {
+        "text": "Compara: 'FRA-2201' y 'FRA-2207'. ¿Coinciden?",
+        "options": ["Sí", "No, el último dígito cambia", "No, cambia 'FRA'", "No, cambia todo"],
         "correct": 1,
         "dim": "AT",
     },
     {
-        "text": "Instrucción: 'apretar tornillo hasta tope y luego girar 1/4 de vuelta atrás'. ¿Último paso?",
-        "options": ["Apretar más fuerte", "Girar 1/4 hacia atrás", "Soltar todo", "No hacer nada"],
-        "correct": 1,
-        "dim": "AT",
-    },
-    {
-        "text": "Etiqueta: 'EXP: 12/2026'. ¿'EXP' significa...?",
-        "options": ["Fecha de compra", "Fecha de producción", "Fecha de vencimiento", "Fecha de turno"],
+        "text": "Si una medida es 221.45 y otra 221.54, la diferencia exacta está en:",
+        "options": ["Las centenas", "Las decenas", "Las centésimas", "Las unidades"],
         "correct": 2,
         "dim": "AT",
     },
     {
-        "text": "Plano dice 'usar guantes A'. El operario usa guantes tipo B. ¿Sigue la instrucción?",
-        "options": ["Sí, da lo mismo", "Sí, si son cómodos", "No", "Sólo si es supervisor"],
-        "correct": 2,
-        "dim": "AT",
-    },
-    {
-        "text": "Manual: 'cortar a 120 mm ±2 mm'. La pieza mide 117 mm. ¿Está dentro?",
-        "options": ["Sí", "No", "Siempre mejor más corto", "No se sabe"],
-        "correct": 1,
-        "dim": "AT",
-    },
-    {
-        "text": "Turno 07:00–15:00. ¿Cuántas horas son?",
-        "options": ["7", "8", "9", "Depende del break"],
-        "correct": 1,
-        "dim": "AT",
-    },
-    {
-        "text": "Etiqueta dice 'Caja A12-B'. Se retira 'Caja A21-B'. ¿Es la misma?",
-        "options": ["Sí", "No, 12 y 21 no son iguales", "Sí, sólo cambia el orden", "No se sabe"],
-        "correct": 1,
-        "dim": "AT",
-    },
-    {
-        "text": "Informe: 'Temperatura 38.5°C'. Registro: '37.5°C'. ¿Coinciden?",
-        "options": ["Sí", "No, difieren 1 grado", "No, difieren 0.5°", "No, difieren 2 grados"],
-        "correct": 1,
-        "dim": "AT",
-    },
-    {
-        "text": "Planilla dice 'Pallet #0047'. Se embarca 'Pallet #047'. ¿Hay error?",
-        "options": ["Sí, falta un 0", "No, es lo mismo", "Sí, sobran ceros", "No se sabe"],
-        "correct": 1,
-        "dim": "AT",
-    },
-    {
-        "text": "Check-list: Paso 1-Limpiar / Paso 2-Ajustar / Paso 3-Verificar. ¿Cuál va segundo?",
-        "options": ["Ajustar", "Verificar", "Limpiar", "No se sabe"],
+        "text": "Lee con precisión: ¿Cuál de estas opciones es exactamente 'M4-77B'?",
+        "options": ["M4-77B", "M4-7B7", "M4-77b", "M4_77B"],
         "correct": 0,
+        "dim": "AT",
+    },
+    {
+        "text": "Si un valor permitido es entre 10.0 y 10.5, ¿cuál de estos valores está FUERA del rango?",
+        "options": ["10.1", "10.3", "10.5", "10.6"],
+        "correct": 3,
+        "dim": "AT",
+    },
+    {
+        "text": "Selecciona la opción escrita SIN error ortográfico:",
+        "options": ["precición", "presición", "precisión", "preccisión"],
+        "correct": 2,
+        "dim": "AT",
+    },
+    {
+        "text": "Selecciona el número más grande:",
+        "options": ["0.45", "0.405", "0.54", "0.504"],
+        "correct": 2,
+        "dim": "AT",
+    },
+    {
+        "text": "¿Cuál número es más cercano a 100?",
+        "options": ["97", "89", "105", "76"],
+        "correct": 2,
+        "dim": "AT",
+    },
+    {
+        "text": "¿Cuál de estas palabras está escrita de forma distinta a las otras?",
+        "options": ["control", "control", "contorl", "control"],
+        "correct": 2,
+        "dim": "AT",
+    },
+    {
+        "text": "Encuentra el distinto: 'Q8B7', 'Q8B7', 'Q8R7', 'Q8B7'",
+        "options": ["El primero", "El segundo", "El tercero", "El cuarto"],
+        "correct": 2,
+        "dim": "AT",
+    },
+    {
+        "text": "¿Cuál de estas es la serie completamente ascendente?",
+        "options": ["2, 4, 6, 8", "2, 5, 4, 7", "10, 9, 8, 7", "1, 1, 1, 2"],
+        "correct": 0,
+        "dim": "AT",
+    },
+    {
+        "text": "En 'ABCD-1234', ¿qué carácter está en la posición 3 (contando desde 1)?",
+        "options": ["A", "B", "C", "D"],
+        "correct": 2,
+        "dim": "AT",
+    },
+    {
+        "text": "Si lees '7-14-21-28', ¿cuál es el siguiente número si sigue el mismo patrón?",
+        "options": ["32", "33", "34", "35"],
+        "correct": 3,
         "dim": "AT",
     },
 
-    # ---------------- VD (Velocidad de Decisión / Juicio rápido) ----------------
+    # =========================
+    # VD · Velocidad de Decisión
+    # =========================
     {
-        "text": "Operación urgente. ¿Qué haces primero?",
+        "text": "Tienes que elegir rápido la opción con el número más pequeño:",
+        "options": ["12", "5", "30", "9"],
+        "correct": 1,
+        "dim": "VD",
+    },
+    {
+        "text": "Si tienes que actuar inmediatamente, ¿qué decisión tiene MENOS riesgo?",
         "options": [
-            "Revisar seguridad básica",
-            "Pedir permiso escrito",
-            "Irte a colación",
-            "Esperar 1 hora",
+            "Revisar antes de tocar",
+            "Tocar sin mirar",
+            "Actuar sin pensar",
+            "Ignorar todo",
         ],
         "correct": 0,
         "dim": "VD",
     },
     {
-        "text": "La línea se detiene por falta evidente de insumo. ¿Acción inmediata más lógica?",
+        "text": "Debes priorizar. ¿Qué eliges primero?",
         "options": [
-            "Avisar al encargado de insumos",
-            "Ir a fumar",
-            "Ignorar",
-            "Reiniciar toda la máquina sin permiso",
+            "Resolver lo urgente",
+            "Resolver lo opcional",
+            "Hacer algo no relacionado",
+            "No hacer nada",
         ],
         "correct": 0,
         "dim": "VD",
     },
     {
-        "text": "Reportan fuga de aceite. ¿Qué haces primero?",
+        "text": "Si algo parece peligroso a simple vista, la mejor decisión inicial es:",
         "options": [
-            "Pisar el aceite",
-            "Asegurar zona / informar",
-            "Terminar la tarea y luego ver",
-            "Nada",
-        ],
-        "correct": 1,
-        "dim": "VD",
-    },
-    {
-        "text": "Debes usar primero la caja con fecha más antigua. ¿Cuál eliges?",
-        "options": [
-            "Caja 05/05",
-            "Caja 10/05",
-            "Caja 12/05",
-            "Caja sin fecha",
-        ],
-        "correct": 0,
-        "dim": "VD",
-    },
-    {
-        "text": "Un pallet bloquea el pasillo y otro está libre. ¿Cuál mueves primero?",
-        "options": ["El que bloquea pasillo", "El libre", "Ninguno", "Los 2 a la vez"],
-        "correct": 0,
-        "dim": "VD",
-    },
-    {
-        "text": "Suena una alarma roja. ¿Qué haces primero?",
-        "options": [
-            "Nada",
-            "Ver qué indica / detener si corresponde",
-            "Apagar todas las luces de la planta",
-            "Cambiarte de área sin avisar",
-        ],
-        "correct": 1,
-        "dim": "VD",
-    },
-    {
-        "text": "Hay diferencia entre etiqueta y pedido. ¿Reacción inicial adecuada?",
-        "options": [
-            "Despachar igual",
-            "Avisar diferencia antes de despachar",
-            "Tachar la etiqueta con plumón",
-            "Esconderlo",
-        ],
-        "correct": 1,
-        "dim": "VD",
-    },
-    {
-        "text": "Supervisor pide priorizar embalaje. ¿Qué haces?",
-        "options": [
-            "Priorizas embalaje",
-            "Haces otra cosa que prefieres",
-            "Te vas sin avisar",
-            "Llamas a otro supervisor para discutir",
-        ],
-        "correct": 0,
-        "dim": "VD",
-    },
-    {
-        "text": "La máquina vibra raro, distinto a lo normal:",
-        "options": [
-            "Ignorar",
-            "Cortar energía/avisar según procedimiento",
-            "Golpear la máquina",
-            "Subirte arriba",
-        ],
-        "correct": 1,
-        "dim": "VD",
-    },
-    {
-        "text": "¿Qué caja levantas primero si quieres la más liviana?",
-        "options": [
-            "Caja '15 kg'",
-            "Caja '9 kg'",
-            "Caja '22 kg'",
-            "Caja sin rotular",
-        ],
-        "correct": 1,
-        "dim": "VD",
-    },
-    {
-        "text": "Notas olor a quemado en tablero eléctrico:",
-        "options": [
-            "Pones la mano encima",
-            "Avisa y detén operación si corresponde",
-            "Lo tapas con cinta",
-            "Ignoras",
-        ],
-        "correct": 1,
-        "dim": "VD",
-    },
-    {
-        "text": "Salida de emergencia bloqueada con pallets:",
-        "options": [
-            "No haces nada",
-            "Avisa y despeja salida",
-            "Apilas más cosas adelante",
-            "Te vas a otra área",
-        ],
-        "correct": 1,
-        "dim": "VD",
-    },
-    {
-        "text": "Se está cayendo material frágil:",
-        "options": [
-            "Intentar estabilizar si es seguro",
-            "Alejarse para no lesionarse y avisar",
-            "Patear el pallet",
+            "Acercarte más sin cuidado",
+            "Actuar como si no pasara nada",
+            "Tomar distancia y evaluar",
             "Filmar con el celular",
         ],
+        "correct": 2,
+        "dim": "VD",
+    },
+    {
+        "text": "¿Cuál es la opción más lógica cuando hay dos versiones contradictorias de información?",
+        "options": [
+            "Elegir cualquiera al azar",
+            "Pedir confirmación antes de seguir",
+            "Ignorar el problema",
+            "Inventar un dato",
+        ],
         "correct": 1,
         "dim": "VD",
     },
     {
-        "text": "Dos piezas tienen números distintos y no sabes cuál sirve:",
+        "text": "Tienes 4 tareas y sólo tiempo para 1 ahora: urgente, importante, posterior, irrelevante. ¿Cuál haces primero?",
         "options": [
-            "Despachas cualquiera",
-            "Pides confirmación antes de moverlas",
-            "Borras ambos números",
-            "Las mezclas",
+            "irrelevante",
+            "posterior",
+            "importante",
+            "urgente",
+        ],
+        "correct": 3,
+        "dim": "VD",
+    },
+    {
+        "text": "Si detectas un error claro, la mejor reacción inmediata es:",
+        "options": [
+            "Taparlo",
+            "Avisar",
+            "Ignorarlo",
+            "Culpar a otro sin revisar",
         ],
         "correct": 1,
+        "dim": "VD",
+    },
+    {
+        "text": "Escoge la opción más razonable si notas que algo no cuadra:",
+        "options": [
+            "Actuar sin verificar",
+            "Detener un momento y revisar",
+            "Decir que todo está perfecto",
+            "Hacer otra cosa no relacionada",
+        ],
+        "correct": 1,
+        "dim": "VD",
+    },
+    {
+        "text": "¿Cuál de estas opciones muestra mejor 'orden lógico'?",
+        "options": [
+            "Pensar → Decidir → Actuar",
+            "Actuar → Pensar → Decidir",
+            "Decidir → Actuar → Pensar",
+            "Actuar → Ignorar → Repetir",
+        ],
+        "correct": 0,
+        "dim": "VD",
+    },
+    {
+        "text": "Si tienes que elegir entre dos números y debes tomar el MAYOR rápidamente, ¿cuál eliges entre 17 y 21?",
+        "options": ["17", "21", "Son iguales", "No se puede saber"],
+        "correct": 1,
+        "dim": "VD",
+    },
+    {
+        "text": "Tienes 3 opciones: A = seguro, B = desconocido, C = claramente peligroso. ¿Cuál eliges primero?",
+        "options": ["A", "B", "C", "Ninguna"],
+        "correct": 0,
+        "dim": "VD",
+    },
+    {
+        "text": "Debes decidir rápido si algo necesita atención inmediata o puede esperar. ¿Cuál de estas frases describe 'inmediato'?",
+        "options": [
+            "Puede esperar varios días",
+            "Necesita verse ahora",
+            "Tal vez el mes siguiente",
+            "Da lo mismo",
+        ],
+        "correct": 1,
+        "dim": "VD",
+    },
+    {
+        "text": "¿Cuál de estas acciones muestra mejor criterio básico?",
+        "options": [
+            "Hacer algo riesgoso sin preguntar",
+            "Avisar si no entiendes algo importante",
+            "Asumir que todo está bien siempre",
+            "No decir nada aunque veas un problema",
+        ],
+        "correct": 1,
+        "dim": "VD",
+    },
+    {
+        "text": "Si tienes que actuar rápido pero con sentido común, lo primero es:",
+        "options": [
+            "Admitir que no sabes y preguntar",
+            "Actuar a ciegas",
+            "Ignorar la situación",
+            "Inventar una explicación",
+        ],
+        "correct": 0,
         "dim": "VD",
     },
 
-    # ---------------- MT (Memoria de Trabajo / Retención inmediata) ----------------
+    # =========================
+    # MT · Memoria de Trabajo
+    # =========================
     {
-        "text": "Te dicen: 'Toma caja A12 del rack 3 y llévala al andén 5'. ¿Qué debes mover?",
-        "options": [
-            "Caja A12 desde rack 3 al andén 5",
-            "Caja A5 desde rack 12 al andén 3",
-            "Caja rack 5 al andén 12",
-            "Nada",
-        ],
+        "text": "Recuerda: AZ3. ¿Cuál era el código?",
+        "options": ["AZ3", "A3Z", "ZA3", "AZ4"],
         "correct": 0,
         "dim": "MT",
     },
     {
-        "text": "Instrucción rápida: 'Etiqueta piezas verdes y luego guarda azules'. ¿Qué haces primero?",
-        "options": [
-            "Guardar azules",
-            "Etiquetar verdes",
-            "Nada",
-            "Pedir colación",
-        ],
+        "text": "Te digo: 'El número es 514'. ¿Cuál es el número?",
+        "options": ["154", "451", "514", "541"],
+        "correct": 2,
+        "dim": "MT",
+    },
+    {
+        "text": "Memoriza esta secuencia: 7 - 2 - 9. ¿Cuál era el segundo número?",
+        "options": ["7", "2", "9", "No recuerdo"],
         "correct": 1,
         "dim": "MT",
     },
     {
-        "text": "Te dicen: 'Busca guantes talla M y llévalos al supervisor de línea 2'. ¿Qué entregas?",
-        "options": [
-            "Guantes talla M a línea 2",
-            "Guantes talla S a línea 2",
-            "Guantes talla M a línea 5",
-            "Guantes talla L a línea 2",
-        ],
+        "text": "Te doy: R, T, R, P. ¿Qué letra apareció DOS veces?",
+        "options": ["R", "T", "P", "Ninguna"],
         "correct": 0,
         "dim": "MT",
     },
     {
-        "text": "Te indican: 'Primero limpia filtro, después revisa fuga'. ¿Qué va al final?",
-        "options": [
-            "Limpiar filtro",
-            "Revisar fuga",
-            "Cortar energía",
-            "Llamar a RRHH",
-        ],
+        "text": "Instrucción: 'Primero anota, luego entrega'. ¿Qué haces primero?",
+        "options": ["Entregar", "Anotar", "Ninguna", "Las dos a la vez"],
         "correct": 1,
         "dim": "MT",
     },
     {
-        "text": "Recuerda estos 3 códigos: Z17, Z18, Z21. ¿Cuál NO estaba?",
-        "options": ["Z17", "Z18", "Z21", "Z27"],
+        "text": "Te digo: 'Recuerda 48B6'. ¿Cuál era el código?",
+        "options": ["48B6", "46B8", "48b6", "84B6"],
+        "correct": 0,
+        "dim": "MT",
+    },
+    {
+        "text": "Te digo: 'Guarda esta idea: SOL-19'. ¿Qué recuerdo corresponde?",
+        "options": ["SOL-91", "S0L-19", "SOL-19", "SOL19-"],
+        "correct": 2,
+        "dim": "MT",
+    },
+    {
+        "text": "Instrucción: 'Primero marca A, después marca C'. ¿Qué va segundo?",
+        "options": ["Marcar A", "Marcar C", "Marcar B", "No se indicó"],
+        "correct": 1,
+        "dim": "MT",
+    },
+    {
+        "text": "Secuencia verbal: '4, 9, 4, 1'. ¿Cuál número apareció dos veces?",
+        "options": ["4", "9", "1", "Ninguno"],
+        "correct": 0,
+        "dim": "MT",
+    },
+    {
+        "text": "Recuerda 'K7P'. ¿Cuál era la letra en el medio?",
+        "options": ["K", "7", "P", "Ninguna"],
+        "correct": 1,
+        "dim": "MT",
+    },
+    {
+        "text": "Te digo: 'Anota 312 y después repite 312 al final'. ¿Qué número tenías que repetir?",
+        "options": ["123", "132", "213", "312"],
         "correct": 3,
         "dim": "MT",
     },
     {
-        "text": "Pasos: (1) Alinear caja, (2) Sellar tapa. ¿Qué paso va segundo?",
-        "options": ["Alinear caja", "Sellar tapa", "Abrir caja", "Poner etiqueta"],
+        "text": "Orden verbal: 'Toma nota, revisa, confirma'. ¿Cuál fue el tercer paso?",
+        "options": ["Toma nota", "Revisa", "Confirma", "Ninguno"],
+        "correct": 2,
+        "dim": "MT",
+    },
+    {
+        "text": "Te digo: 'El código temporal es F9'. ¿Cuál es el código?",
+        "options": ["9F", "F9", "FF9", "F-9-9"],
         "correct": 1,
         "dim": "MT",
     },
     {
-        "text": "Mensaje verbal: 'Entrega el informe al supervisor nocturno antes de irte'. ¿Qué debes hacer?",
-        "options": [
-            "Entregar informe al supervisor nocturno antes de irme",
-            "Entregar informe al supervisor de día mañana",
-            "Guardar informe en casillero",
-            "Dejar informe en recepción",
-        ],
+        "text": "Indicaciones: 'A -> B -> A'. ¿Cuál fue la última letra indicada?",
+        "options": ["A", "B", "No hubo última letra", "C"],
         "correct": 0,
-        "dim": "MT",
-    },
-    {
-        "text": "Te dicen: 'Termina conteo en pasillo B, luego ve al A'. ¿Qué haces primero?",
-        "options": ["Pasillo A", "Pasillo B", "Ninguno", "Ambos a la vez"],
-        "correct": 1,
-        "dim": "MT",
-    },
-    {
-        "text": "Recuerda orden rápido: rojo → verde → azul. ¿Cuál fue el segundo color?",
-        "options": ["rojo", "verde", "azul", "amarillo"],
-        "correct": 1,
-        "dim": "MT",
-    },
-    {
-        "text": "Te indican: 'Corta energía, luego avisa'. ¿Qué va segundo?",
-        "options": ["Cortar energía", "Avisar", "No hacer nada", "Pedir permiso"],
-        "correct": 1,
-        "dim": "MT",
-    },
-    {
-        "text": "Te pasan: 'Caja 31 va a zona V'. ¿Qué debes recordar?",
-        "options": [
-            "Caja 13 va a zona V",
-            "Caja 31 va a zona V",
-            "Caja 31 va a zona B",
-            "Caja V va a zona 31",
-        ],
-        "correct": 1,
-        "dim": "MT",
-    },
-    {
-        "text": "Te dicen: 'Pon sticker rojo en productos dañados'. ¿Qué color usas?",
-        "options": ["Rojo", "Verde", "Azul", "Amarillo"],
-        "correct": 0,
-        "dim": "MT",
-    },
-    {
-        "text": "Secuencia verbal: 'Llave grande, llave chica, destornillador plano'. ¿Cuál fue el segundo elemento?",
-        "options": [
-            "Llave grande",
-            "Llave chica",
-            "Destornillador plano",
-            "No se dijo",
-        ],
-        "correct": 1,
-        "dim": "MT",
-    },
-    {
-        "text": "Te piden: 'Lleva estos guantes a línea A y luego vuelve a bodega'. ¿Cuál es el último paso?",
-        "options": [
-            "Quedarte en la línea A",
-            "Volver a bodega",
-            "Ir a colación",
-            "Botar los guantes",
-        ],
-        "correct": 1,
         "dim": "MT",
     },
 
-    # ---------------- CI (Comprensión de Instrucciones / Lectura Operativa) ----------------
+    # =========================
+    # CI · Comprensión de Instrucciones
+    # =========================
     {
-        "text": "Lee: 'Antes de operar, usar casco y guantes'. ¿Qué se exige antes de operar?",
+        "text": "Lee: 'Antes de comenzar, leer las indicaciones completas'. ¿Qué se debe hacer primero?",
         "options": [
-            "Casco y guantes",
-            "Sólo casco",
-            "Sólo guantes",
+            "Comenzar",
+            "Leer las indicaciones completas",
+            "Ignorar las indicaciones",
+            "No se puede saber",
+        ],
+        "correct": 1,
+        "dim": "CI",
+    },
+    {
+        "text": "Texto: 'No continuar si hay dudas'. ¿Qué significa?",
+        "options": [
+            "Continuar igual",
+            "Detenerse si hay dudas",
+            "Ignorar dudas pequeñas",
+            "Preguntar después",
+        ],
+        "correct": 1,
+        "dim": "CI",
+    },
+    {
+        "text": "Instrucción: 'Sigue los pasos en orden numérico'. ¿Cuál orden es correcto?",
+        "options": ["2,1,3", "1,2,3", "3,1,2", "2,3,1"],
+        "correct": 1,
+        "dim": "CI",
+    },
+    {
+        "text": "Indicación: 'Registrar sólo valores reales, no aproximados'. ¿Qué se debe escribir?",
+        "options": [
+            "Un número inventado",
+            "Un número aproximado",
+            "El valor real observado",
             "Nada",
-        ],
-        "correct": 0,
-        "dim": "CI",
-    },
-    {
-        "text": "Instructivo: 'No encender la máquina sin autorización del supervisor'. ¿Qué significa?",
-        "options": [
-            "Encender cuando quieras",
-            "Sólo encender con permiso",
-            "Nunca encender",
-            "Encender sólo una vez",
-        ],
-        "correct": 1,
-        "dim": "CI",
-    },
-    {
-        "text": "Aviso: 'Descargar pallets en Zona A, luego etiquetar'. ¿Cuál acción va segunda?",
-        "options": [
-            "Descargar pallets",
-            "Etiquetar",
-            "Mover a Zona B",
-            "Romper pallets",
-        ],
-        "correct": 1,
-        "dim": "CI",
-    },
-    {
-        "text": "Etiqueta: 'Material frágil: NO golpear'. ¿Qué debes evitar?",
-        "options": [
-            "Moverlo",
-            "Golpearlo",
-            "Mirarlo",
-            "Reportarlo",
-        ],
-        "correct": 1,
-        "dim": "CI",
-    },
-    {
-        "text": "Cartel: 'Salida de emergencia libre de obstáculos'. ¿Qué NO debe haber?",
-        "options": [
-            "Cajas bloqueando",
-            "Señalización",
-            "Luces verdes",
-            "Extintor cercano",
-        ],
-        "correct": 0,
-        "dim": "CI",
-    },
-    {
-        "text": "Orden: 'Rotar stock según fecha más antigua primero'. ¿Qué prioridad se usa?",
-        "options": [
-            "Lo más nuevo primero",
-            "Lo más antiguo primero",
-            "Al azar",
-            "El más pesado primero",
-        ],
-        "correct": 1,
-        "dim": "CI",
-    },
-    {
-        "text": "Procedimiento: 'Parar la línea si hay riesgo inmediato de lesión'. ¿Cuándo se detiene la línea?",
-        "options": [
-            "Sólo al final del turno",
-            "Cuando hay riesgo inmediato de lesión",
-            "Nunca",
-            "Sólo con permiso médico",
-        ],
-        "correct": 1,
-        "dim": "CI",
-    },
-    {
-        "text": "Nota: 'Usar gafas de protección al cortar metal'. ¿Qué acción requiere gafas?",
-        "options": [
-            "Cortar metal",
-            "Ir al baño",
-            "Caminar en pasillo",
-            "Tomar agua",
-        ],
-        "correct": 0,
-        "dim": "CI",
-    },
-    {
-        "text": "Procedimiento: 'Registrar temperatura cada hora'. ¿Qué debes hacer?",
-        "options": [
-            "Registrar temperatura una vez al día",
-            "Registrar temperatura cada hora",
-            "No registrar",
-            "Registrar sólo si es muy alta",
-        ],
-        "correct": 1,
-        "dim": "CI",
-    },
-    {
-        "text": "Aviso: 'No apilar sobre esta línea roja'. ¿Qué indica?",
-        "options": [
-            "Apilar sobre la línea roja",
-            "Evitar apilar sobre la línea roja",
-            "Pintar más rojo",
-            "Cubrir la línea",
-        ],
-        "correct": 1,
-        "dim": "CI",
-    },
-    {
-        "text": "Indicación: 'Firmar check-list al terminar la inspección'. ¿Cuándo firmas?",
-        "options": [
-            "Antes de inspeccionar",
-            "Al terminar la inspección",
-            "Nunca",
-            "Cuando quieras",
-        ],
-        "correct": 1,
-        "dim": "CI",
-    },
-    {
-        "text": "Texto: 'Zona restringida: sólo personal autorizado'. ¿Quién puede entrar?",
-        "options": [
-            "Cualquiera",
-            "Sólo personal autorizado",
-            "Visitas externas",
-            "Nadie nunca",
-        ],
-        "correct": 1,
-        "dim": "CI",
-    },
-    {
-        "text": "Hoja de seguridad: 'Cortar energía antes de mantenimiento'. ¿Qué va primero?",
-        "options": [
-            "Reparar directamente",
-            "Cortar energía",
-            "Sacar fotos",
-            "Nada",
-        ],
-        "correct": 1,
-        "dim": "CI",
-    },
-    {
-        "text": "Instrucción: 'Reportar derrames químicos inmediatamente'. ¿Cuándo reportas?",
-        "options": [
-            "Al final del mes",
-            "Sólo si es grande",
-            "Inmediatamente",
-            "Nunca",
         ],
         "correct": 2,
+        "dim": "CI",
+    },
+    {
+        "text": "Frase: 'Si falta información, preguntar antes de continuar'. ¿Cuál es la acción correcta si falta información?",
+        "options": [
+            "Seguir sin preguntar",
+            "Preguntar antes de continuar",
+            "Terminar igual",
+            "Ignorar eso",
+        ],
+        "correct": 1,
+        "dim": "CI",
+    },
+    {
+        "text": "Texto: 'Verificar el dato y luego confirmarlo por escrito'. ¿Qué va segundo?",
+        "options": [
+            "Verificar el dato",
+            "Confirmarlo por escrito",
+            "No hacer nada",
+            "Decir que todo está bien sin revisar",
+        ],
+        "correct": 1,
+        "dim": "CI",
+    },
+    {
+        "text": "Lee: 'No firmar documentos incompletos'. ¿Qué opción respeta la instrucción?",
+        "options": [
+            "Firmar aunque falte información",
+            "Firmar siempre",
+            "No firmar si está incompleto",
+            "Firmar sin leer",
+        ],
+        "correct": 2,
+        "dim": "CI",
+    },
+    {
+        "text": "Regla: 'Reportar inmediatamente cualquier error detectado'. ¿Cuándo reportas?",
+        "options": [
+            "Al final del mes",
+            "Inmediatamente",
+            "Cuando tengas tiempo libre",
+            "Nunca",
+        ],
+        "correct": 1,
+        "dim": "CI",
+    },
+    {
+        "text": "Instrucción: 'Ordenar de menor a mayor'. ¿Cuál secuencia cumple eso?",
+        "options": [
+            "9, 7, 5, 3",
+            "3, 5, 7, 9",
+            "7, 3, 9, 5",
+            "9, 9, 9, 8",
+        ],
+        "correct": 1,
+        "dim": "CI",
+    },
+    {
+        "text": "Texto: 'Revisar el valor 3 veces antes de enviarlo'. ¿Qué describe mejor la indicación?",
+        "options": [
+            "Revisar una vez",
+            "Revisar ninguna vez",
+            "Revisar 3 veces antes de enviar",
+            "Enviar sin revisar",
+        ],
+        "correct": 2,
+        "dim": "CI",
+    },
+    {
+        "text": "Frase: 'Utilizar sólo la información confirmada'. ¿Cuál es la acción correcta?",
+        "options": [
+            "Usar rumores",
+            "Usar información confirmada",
+            "Inventar datos",
+            "No usar información",
+        ],
+        "correct": 1,
+        "dim": "CI",
+    },
+    {
+        "text": "Lee: 'Si un dato parece incorrecto, detener y aclarar antes de seguir'. ¿Qué debes hacer si ves un dato raro?",
+        "options": [
+            "Seguir sin revisar",
+            "Cambiarlo sin decir nada",
+            "Detener y aclarar antes de seguir",
+            "Borrarlo",
+        ],
+        "correct": 2,
+        "dim": "CI",
+    },
+    {
+        "text": "Instrucción: 'Completar todos los campos obligatorios'. ¿Cuál opción cumple?",
+        "options": [
+            "Dejar espacios vacíos",
+            "Completar sólo lo fácil",
+            "Completar todos los campos obligatorios",
+            "No completar nada",
+        ],
+        "correct": 2,
+        "dim": "CI",
+    },
+    {
+        "text": "Norma: 'No modificar los datos originales sin autorización'. ¿Cuál conducta respeta la norma?",
+        "options": [
+            "Cambiar datos originales por tu cuenta",
+            "Pedir autorización antes de modificar",
+            "Modificar siempre todo",
+            "Borrar los datos",
+        ],
+        "correct": 1,
         "dim": "CI",
     },
 ]
 
 TOTAL_QUESTIONS = len(QUESTIONS)  # 70
 
+
 # ------------------------------------------------------------
-# ESTADO STREAMLIT
+# ESTADO GLOBAL STREAMLIT
 # ------------------------------------------------------------
 if "stage" not in st.session_state:
-    # flujo ahora: info -> test -> done
-    st.session_state.stage = "info"
+    st.session_state.stage = "info"  # info -> test -> done
 
 if "candidate_name" not in st.session_state:
     st.session_state.candidate_name = ""
 
 if "evaluator_email" not in st.session_state:
-    st.session_state.evaluator_email = FROM_ADDR
+    st.session_state.evaluator_email = ""
 
 if "current_q" not in st.session_state:
     st.session_state.current_q = 0
 
 if "answers" not in st.session_state:
+    # guardamos la alternativa elegida (0..3)
     st.session_state.answers = {i: None for i in range(TOTAL_QUESTIONS)}
 
 if "_need_rerun" not in st.session_state:
@@ -682,133 +645,177 @@ if "_need_rerun" not in st.session_state:
 if "already_sent" not in st.session_state:
     st.session_state.already_sent = False
 
+
 # ------------------------------------------------------------
 # SCORING
 # ------------------------------------------------------------
+
+def _norm_to_6(raw_value, max_items):
+    # normalizamos puntaje bruto 0..max_items a 0..6
+    if max_items <= 0:
+        return 0.0
+    return (raw_value / max_items) * 6.0
+
 def compute_scores(ans_dict):
-    # puntajes brutos por dimensión
-    raw_dim = {"RL":0,"AT":0,"VD":0,"MT":0,"CI":0}
-
-    for idx, q in enumerate(QUESTIONS):
-        chosen = ans_dict.get(idx)
-        if chosen is None:
-            continue
-        if chosen == q["correct"]:
-            raw_dim[q["dim"]] += 1
-
-    # normalizar a escala 0-10 visual (14 preguntas cada dimensión)
-    norm_dim = {}
-    for dim_key in raw_dim:
-        norm_dim[dim_key] = (raw_dim[dim_key] / 14.0) * 10.0
-
-    # índice global G (promedio de las 5 dimensiones)
-    G_raw = sum(raw_dim.values()) / 5.0
-    G_norm = sum(norm_dim.values()) / 5.0
-
-    return {
-        "raw": raw_dim,      # bruto (0-14)
-        "norm": norm_dim,    # normalizado 0-10
-        "G_raw": G_raw,      # promedio bruto
-        "G_norm": G_norm,    # promedio 0-10
+    # conteo aciertos por dimensión
+    dim_correct = {
+        "RL": 0,
+        "AT": 0,
+        "VD": 0,
+        "MT": 0,
+        "CI": 0
+    }
+    dim_total = {
+        "RL": 0,
+        "AT": 0,
+        "VD": 0,
+        "MT": 0,
+        "CI": 0
     }
 
-def level_label(norm_score):
-    # escala 0-10
-    if norm_score >= 7.5:
+    for idx, q in enumerate(QUESTIONS):
+        dim = q["dim"]
+        dim_total[dim] += 1
+        chosen = ans_dict.get(idx)
+        if chosen is not None and chosen == q["correct"]:
+            dim_correct[dim] += 1
+
+    # Escala normalizada 0-6
+    norm_scores = {}
+    for d in dim_correct:
+        norm_scores[d] = _norm_to_6(dim_correct[d], dim_total[d])
+
+    return {
+        "raw": dim_correct,      # p.ej RL: 9 (de 14)
+        "total": dim_total,      # p.ej RL: 14
+        "norm": norm_scores      # p.ej RL_norm ~ 3.8/6
+    }
+
+def qualitative_level(norm_score):
+    # mismo criterio en todas las dimensiones
+    if norm_score > 4.5:
         return "Alto"
-    elif norm_score >= 4.5:
+    elif norm_score > 2.0:
         return "Medio"
     else:
         return "Bajo"
 
-def build_descriptions():
-    return {
-        "RL": "Razonamiento lógico / cálculo básico / detección de patrones para prevenir errores.",
-        "AT": "Precisión en lectura de datos, números, tolerancias y procedimientos.",
-        "VD": "Decisión operativa rápida priorizando seguridad y continuidad básica.",
-        "MT": "Memoria inmediata para retener instrucciones verbales y orden de pasos.",
-        "CI": "Comprensión de instrucciones escritas u orales y aplicación correcta.",
-        "G":  "Indicador promedio global de desempeño cognitivo aplicado.",
-    }
+def build_dim_descriptions(norm_map):
+    """
+    Devuelve descripción breve por dimensión
+    """
+    out = {}
+    # RL
+    out["RL"] = (
+        "Capacidad para reconocer patrones, relaciones numéricas y deducir reglas lógicas rápidamente."
+        if norm_map["RL"] > 2.0 else
+        "Puede requerir más apoyo en tareas que exigen deducir patrones numéricos o relaciones lógicas nuevas."
+    )
+    # AT
+    out["AT"] = (
+        "Precisión al notar diferencias pequeñas en códigos, números o detalles escritos."
+        if norm_map["AT"] > 2.0 else
+        "Puede pasar por alto variaciones pequeñas en datos similares; sugiere chequeo adicional en información crítica."
+    )
+    # VD
+    out["VD"] = (
+        "Toma decisiones iniciales con criterio básico de seguridad y prioridad, incluso bajo presión de tiempo."
+        if norm_map["VD"] > 2.0 else
+        "Podría necesitar más confirmación antes de actuar en decisiones rápidas que requieren priorizar."
+    )
+    # MT
+    out["MT"] = (
+        "Retención y manipulación inmediata de información verbal/códigos de corto plazo."
+        if norm_map["MT"] > 2.0 else
+        "Puede requerir instrucciones más repetidas o fragmentadas cuando hay varios pasos consecutivos."
+    )
+    # CI
+    out["CI"] = (
+        "Comprende instrucciones escritas, el orden correcto de pasos y condiciones básicas antes de ejecutar."
+        if norm_map["CI"] > 2.0 else
+        "Puede necesitar instrucciones más explícitas por escrito y confirmación de entendimiento previo a la ejecución."
+    )
+    return out
 
-def build_strengths_and_risks(norm_dim, G_norm):
+def build_strengths_and_risks(norm_map):
     fortalezas = []
-    monitoreo = []
+    riesgos = []
 
     # RL
-    if norm_dim["RL"] >= 7.5:
-        fortalezas.append("Capacidad clara de razonamiento lógico y anticipación de errores.")
-    elif norm_dim["RL"] < 4.5:
-        monitoreo.append("Puede requerir acompañamiento inicial en tareas con cálculo o secuencia numérica.")
+    if norm_map["RL"] > 4.5:
+        fortalezas.append("Buen razonamiento lógico y manejo de patrones numéricos.")
+    elif norm_map["RL"] <= 2.0:
+        riesgos.append("En tareas nuevas con reglas numéricas puede requerir apoyo adicional.")
 
     # AT
-    if norm_dim["AT"] >= 7.5:
-        fortalezas.append("Buen nivel de precisión al leer códigos, medidas y tolerancias.")
-    elif norm_dim["AT"] < 4.5:
-        monitoreo.append("Se sugiere doble verificación en controles de calidad o picking crítico.")
+    if norm_map["AT"] > 4.5:
+        fortalezas.append("Alto foco en el detalle y diferencias pequeñas.")
+    elif norm_map["AT"] <= 2.0:
+        riesgos.append("Puede no notar diferencias sutiles (códigos / dígitos similares).")
 
     # VD
-    if norm_dim["VD"] >= 7.5:
-        fortalezas.append("Toma decisiones rápidas priorizando seguridad básica.")
-    elif norm_dim["VD"] < 4.5:
-        monitoreo.append("Podría necesitar confirmación antes de actuar en urgencias.")
+    if norm_map["VD"] > 4.5:
+        fortalezas.append("Priorización rápida y criterio básico de seguridad al decidir.")
+    elif norm_map["VD"] <= 2.0:
+        riesgos.append("Puede necesitar confirmación externa antes de decidir en momentos urgentes.")
 
     # MT
-    if norm_dim["MT"] >= 7.5:
-        fortalezas.append("Retiene instrucciones verbales sin necesidad de repetir constantemente.")
-    elif norm_dim["MT"] < 4.5:
-        monitoreo.append("Puede beneficiarse de instrucciones paso a paso más explícitas.")
+    if norm_map["MT"] > 4.5:
+        fortalezas.append("Buena retención inmediata de códigos / indicaciones cortas.")
+    elif norm_map["MT"] <= 2.0:
+        riesgos.append("Podría olvidar pasos si recibe demasiada información a la vez.")
 
     # CI
-    if norm_dim["CI"] >= 7.5:
-        fortalezas.append("Comprende instrucciones operativas y las ejecuta según lo indicado.")
-    elif norm_dim["CI"] < 4.5:
-        monitoreo.append("Puede requerir apoyo al interpretar protocolos escritos.")
+    if norm_map["CI"] > 4.5:
+        fortalezas.append("Interpreta instrucciones escritas y el orden operativo de manera clara.")
+    elif norm_map["CI"] <= 2.0:
+        riesgos.append("Puede requerir instrucciones más claras y confirmación de entendimiento antes de ejecutar.")
 
-    # Global
-    if G_norm >= 7.5:
-        fortalezas.append("Desempeño cognitivo global alto para entornos con ritmo exigente.")
-    elif G_norm < 4.5:
-        monitoreo.append("Requiere apoyo cercano al inicio hasta consolidar funcionamiento.")
+    # limitar para que el bloque quepa bien
+    return fortalezas[:5], riesgos[:5]
 
-    return fortalezas, monitoreo
-
-def global_fit_text(G_norm):
-    # conclusión global, sin cargo
-    if G_norm >= 4.5:
-        return ("Conclusión general: El perfil evaluado se considera APTO en términos "
-                "cognitivos funcionales básicos para desempeñar tareas operativas generales.")
-    else:
-        return ("Conclusión general: El perfil evaluado REQUIERE APOYO INICIAL "
-                "para lograr un desempeño operativo estable, especialmente durante "
-                "las primeras etapas de entrenamiento.")
 
 # ------------------------------------------------------------
-# UTILIDADES PARA PDF
+# UTILIDADES DE TEXTO PARA PDF
 # ------------------------------------------------------------
-def wrap_lines(c, text, max_width, font="Helvetica", size=8):
+
+def _wrap(c, text, width, font="Helvetica", size=8):
+    """
+    Cortar texto en líneas para que quepa en un ancho dado.
+    """
     words = text.split()
     lines = []
     cur = ""
     for w in words:
-        test = (cur + " " + w).strip()
-        if c.stringWidth(test, font, size) <= max_width:
-            cur = test
+        trial = (cur + " " + w).strip()
+        if c.stringWidth(trial, font, size) <= width:
+            cur = trial
         else:
-            if cur:
-                lines.append(cur)
+            lines.append(cur)
             cur = w
     if cur:
         lines.append(cur)
     return lines
 
-def draw_wrapped(c, text, x, y, w,
-                 font="Helvetica", size=8,
-                 leading=10, color=colors.black,
-                 max_lines=None):
+def _draw_paragraph(
+    c,
+    text,
+    x,
+    y,
+    width,
+    font="Helvetica",
+    size=8,
+    leading=11,
+    color=colors.black,
+    max_lines=None
+):
+    """
+    Dibuja párrafo envuelto en ancho fijo. Devuelve
+    la nueva coordenada Y tras escribir.
+    """
     c.setFont(font, size)
     c.setFillColor(color)
-    lines = wrap_lines(c, text, w, font, size)
+    lines = _wrap(c, text, width, font, size)
     if max_lines is not None:
         lines = lines[:max_lines]
     for ln in lines:
@@ -816,440 +823,386 @@ def draw_wrapped(c, text, x, y, w,
         y -= leading
     return y
 
+
 # ------------------------------------------------------------
-# GENERAR PDF (2 páginas)
+# GENERACIÓN DEL PDF (2 páginas)
 # ------------------------------------------------------------
-def generate_pdf(candidate_name,
-                 fecha_eval,
-                 evaluator_email,
-                 scores,
-                 fortalezas,
-                 monitoreo,
-                 ajuste_text):
 
-    raw_dim = scores["raw"]      # bruto 0-14
-    norm_dim = scores["norm"]    # normalizado 0-10
-    G_norm   = scores["G_norm"]
-    G_raw    = scores["G_raw"]
+def generate_pdf(
+    candidate_name,
+    fecha_eval,
+    evaluator_email,
+    raw_scores,
+    total_scores,
+    norm_scores,
+    fortalezas,
+    riesgos,
+    dim_desc
+):
+    """
+    Crea informe en 2 páginas:
+    PÁGINA 1:
+      - Encabezado
+      - Datos evaluado
+      - Resumen cognitivo observado (fortalezas / aspectos a monitorear)
+      - Perfil cognitivo (barras + puntos)
+    PÁGINA 2:
+      - Tabla Detalle por dimensión (usa todo el ancho)
+      - Nota metodológica
+    """
 
-    desc_map = build_descriptions()
-
-    # niveles cualitativos
-    lvl = {
-        "RL": level_label(norm_dim["RL"]),
-        "AT": level_label(norm_dim["AT"]),
-        "VD": level_label(norm_dim["VD"]),
-        "MT": level_label(norm_dim["MT"]),
-        "CI": level_label(norm_dim["CI"]),
-        "G":  level_label(G_norm),
-    }
-
-    # Texto fortalezas / monitoreo
-    fortalezas_txt = "• " + "\n• ".join(fortalezas) if fortalezas else "• (Sin fortalezas específicas destacadas en rangos altos)."
-    monitoreo_txt  = "• " + "\n• ".join(monitoreo) if monitoreo else "• (Sin observaciones críticas inmediatas)."
-
-    # ---- PAGE 1 ----
     buf = BytesIO()
-    W, H = A4  # ~595 x ~842 pt
+    W, H = A4  # (595 x 842 aprox)
     c = canvas.Canvas(buf, pagesize=A4)
-    margin_x = 36
-    margin_top = H - 36
 
-    # Encabezado
-    c.setFont("Helvetica-Bold",10)
+    # ---------------------------
+    # PÁGINA 1
+    # ---------------------------
+
+    margin_left = 36
+    margin_right = 36
+
+    # Encabezado superior
+    c.setFont("Helvetica-Bold", 11)
     c.setFillColor(colors.black)
-    c.drawString(margin_x, margin_top, "EMPRESA / LOGO")
-    c.setFont("Helvetica",7)
-    c.drawString(margin_x, margin_top-12,
-                 "Evaluación Cognitiva General · Uso interno RR.HH. · No clínico")
+    c.drawString(margin_left, H-40, "EMPRESA / LOGO")
+    c.setFont("Helvetica", 8)
+    c.drawString(margin_left, H-54, "Evaluación Cognitiva General (IQ Adaptado)")
 
-    c.setFont("Helvetica-Bold",10)
-    c.drawRightString(W - margin_x, margin_top,
-                      "Perfil Cognitivo Operativo (IQ Adaptado)")
-    c.setFont("Helvetica",7)
-    c.drawRightString(W - margin_x, margin_top-12,
-                      "Evaluación de habilidades cognitivas aplicadas")
-
-    # Caja datos del evaluado
-    box_w = 250
-    box_h = 80
-    box_x = W - margin_x - box_w
-    box_y_top = margin_top - 40
-    box_y = box_y_top - box_h
-
-    c.setStrokeColor(colors.lightgrey)
-    c.setFillColor(colors.white)
-    c.rect(box_x, box_y, box_w, box_h, stroke=1, fill=1)
-
-    yy = box_y_top - 14
-    c.setFont("Helvetica-Bold",8)
-    c.setFillColor(colors.black)
-    c.drawString(box_x+10, yy, f"Nombre: {candidate_name}")
-    yy -= 12
-    c.setFont("Helvetica",8)
-    c.drawString(box_x+10, yy, "Evaluación: Cognitiva General")
-    yy -= 12
-    c.drawString(box_x+10, yy, f"Fecha evaluación: {fecha_eval}")
-    yy -= 12
-    c.drawString(box_x+10, yy, f"Evaluador: {evaluator_email.upper()}")
-    yy -= 12
-    c.setFont("Helvetica",6)
+    c.setFont("Helvetica-Bold", 11)
+    c.drawRightString(W - margin_right, H-40, "Informe de Capacidades Cognitivas Básicas")
+    c.setFont("Helvetica", 7)
     c.setFillColor(colors.grey)
-    c.drawString(box_x+10, yy, "Uso interno. No clínico.")
+    c.drawRightString(W - margin_right, H-54, "Uso interno RR.HH. / No clínico")
 
-    # Gráfico de barras dimensiones (RL, AT, VD, MT, CI)
-    chart_x = margin_x
-    chart_y = box_y  # mismo baseline aprox
-    chart_w = 260
-    chart_h = 130
-
-    c.setFont("Helvetica-Bold",8)
-    c.setFillColor(colors.black)
-    c.drawString(chart_x, chart_y + chart_h + 18,
-                 "Perfil cognitivo por dimensión (0–10)")
-
-    # eje y
-    c.setStrokeColor(colors.black)
-    c.setLineWidth(1)
-    c.line(chart_x, chart_y, chart_x, chart_y + chart_h)
-
-    # rejilla 0..10
-    for lvl_y in range(0,11):
-        yv = chart_y + (lvl_y/10.0)*chart_h
-        c.setFont("Helvetica",6)
-        c.setFillColor(colors.black)
-        c.drawString(chart_x-15, yv-2, str(lvl_y))
-        c.setStrokeColor(colors.lightgrey)
-        c.line(chart_x, yv, chart_x + chart_w, yv)
-
-    dims_plot = ["RL","AT","VD","MT","CI"]
-    plot_colors = [
-        colors.HexColor("#2563eb"),
-        colors.HexColor("#16a34a"),
-        colors.HexColor("#f97316"),
-        colors.HexColor("#6b7280"),
-        colors.HexColor("#0ea5b7"),
-    ]
-    gap = 10
-    bar_w = (chart_w - gap*(len(dims_plot)+1)) / len(dims_plot)
-    tops_xy = []
-    for i, dimkey in enumerate(dims_plot):
-        val = norm_dim[dimkey]  # 0..10
-        bh = (val/10.0)*chart_h
-        bx = chart_x + gap + i*(bar_w+gap)
-
-        c.setStrokeColor(colors.black)
-        c.setFillColor(plot_colors[i])
-        c.rect(bx, chart_y, bar_w, bh, stroke=1, fill=1)
-
-        tops_xy.append((bx+bar_w/2.0, chart_y+bh))
-
-        # etiqueta
-        c.setFont("Helvetica-Bold",7)
-        c.setFillColor(colors.black)
-        c.drawCentredString(bx+bar_w/2.0, chart_y-14, dimkey)
-
-        # puntaje bruto y nivel
-        c.setFont("Helvetica",6)
-        c.drawCentredString(
-            bx+bar_w/2.0,
-            chart_y-26,
-            f"{raw_dim[dimkey]}/14  {lvl[dimkey]}"
-        )
-
-    # línea quebrada sobre barras
-    c.setStrokeColor(colors.black)
-    c.setLineWidth(1)
-    for j in range(len(tops_xy)-1):
-        x1,y1 = tops_xy[j]
-        x2,y2 = tops_xy[j+1]
-        c.line(x1,y1,x2,y2)
-    for (px,py) in tops_xy:
-        c.setFillColor(colors.black)
-        c.circle(px,py,2,stroke=0,fill=1)
-
-    # Caja "Guía de lectura de dimensiones"
-    guide_x = margin_x
-    guide_y_top = chart_y - 20
-    guide_h = 80
-    guide_w = W - 2*margin_x
+    # CUADRO: Datos del evaluado
+    box_x = margin_left
+    box_y_top = H-90
+    box_w = W - margin_left - margin_right
+    box_h = 60
 
     c.setStrokeColor(colors.lightgrey)
     c.setFillColor(colors.white)
-    c.rect(guide_x, guide_y_top - guide_h, guide_w, guide_h, stroke=1, fill=1)
+    c.rect(box_x, box_y_top-box_h, box_w, box_h, stroke=1, fill=1)
 
-    yy2 = guide_y_top - 16
-    c.setFont("Helvetica-Bold",8)
+    y_cursor = box_y_top - 16
+    c.setFont("Helvetica-Bold", 8)
     c.setFillColor(colors.black)
-    c.drawString(guide_x+10, yy2, "Guía de lectura de dimensiones")
-    yy2 -= 12
+    c.drawString(box_x+10, y_cursor, f"Nombre evaluado: {candidate_name}")
+    y_cursor -= 12
+    c.setFont("Helvetica", 8)
+    c.drawString(box_x+10, y_cursor, f"Fecha de evaluación: {fecha_eval}")
+    y_cursor -= 12
+    c.drawString(box_x+10, y_cursor, f"Evaluador / contacto: {evaluator_email}")
+    y_cursor -= 12
+    c.setFont("Helvetica", 6)
+    c.setFillColor(colors.grey)
+    c.drawString(box_x+10, y_cursor, "Documento de uso interno. No clínico.")
 
-    c.setFont("Helvetica",7)
-    lines_dim = [
-        "RL = Razonamiento Lógico / Secuencias",
-        "AT = Atención al Detalle / Precisión",
-        "VD = Velocidad de Decisión / Juicio rápido",
-        "MT = Memoria de Trabajo / Retención inmediata",
-        "CI = Comprensión de Instrucciones / Lectura Operativa",
-        "G  = Índice Cognitivo Global (promedio de las 5 áreas)",
-    ]
-    for ln in lines_dim:
-        c.drawString(guide_x+14, yy2, ln)
-        yy2 -= 10
-
-    # Caja "Resumen cognitivo observado"
-    summary_x = margin_x
-    summary_y_top = guide_y_top - guide_h - 20
-    summary_h = 170
-    summary_w = W - 2*margin_x
+    # CUADRO: Resumen cognitivo observado
+    # Ocupar ancho completo, bajo datos evaluado
+    sum_box_x = margin_left
+    sum_box_y_top = H-180
+    sum_box_w = W - margin_left - margin_right
+    sum_box_h = 150  # alto suficiente para fortalezas+riesgos
 
     c.setStrokeColor(colors.lightgrey)
     c.setFillColor(colors.white)
-    c.rect(summary_x, summary_y_top - summary_h, summary_w, summary_h, stroke=1, fill=1)
+    c.rect(sum_box_x, sum_box_y_top - sum_box_h, sum_box_w, sum_box_h, stroke=1, fill=1)
 
-    yblock = summary_y_top - 16
-    c.setFont("Helvetica-Bold",8)
+    y_sum = sum_box_y_top - 16
+    c.setFont("Helvetica-Bold", 8)
     c.setFillColor(colors.black)
-    c.drawString(summary_x+10, yblock, "Resumen cognitivo observado")
-    yblock -= 14
+    c.drawString(sum_box_x+10, y_sum, "Resumen cognitivo observado")
+    y_sum -= 14
 
     # Fortalezas
-    c.setFont("Helvetica-Bold",7)
-    c.drawString(summary_x+10, yblock, "Fortalezas potenciales:")
-    yblock -= 12
-    c.setFont("Helvetica",7)
-    yblock = draw_wrapped(
-        c,
-        fortalezas_txt,
-        summary_x+20,
-        yblock,
-        summary_w-30,
-        font="Helvetica",
-        size=7,
-        leading=9,
-        color=colors.black,
-    )
-    yblock -= 10
+    c.setFont("Helvetica-Bold", 7)
+    c.drawString(sum_box_x+10, y_sum, "Fortalezas potenciales:")
+    y_sum -= 12
+    c.setFont("Helvetica", 7)
+    for f in fortalezas:
+        wrap_lines = _wrap(c, "• " + f, sum_box_w-20, "Helvetica", 7)
+        for line in wrap_lines:
+            c.drawString(sum_box_x+20, y_sum, line)
+            y_sum -= 10
+    y_sum -= 6
 
-    # Monitoreo
-    c.setFont("Helvetica-Bold",7)
-    c.drawString(summary_x+10, yblock, "Aspectos a monitorear / apoyo sugerido:")
-    yblock -= 12
-    c.setFont("Helvetica",7)
-    draw_wrapped(
-        c,
-        monitoreo_txt,
-        summary_x+20,
-        yblock,
-        summary_w-30,
-        font="Helvetica",
-        size=7,
-        leading=9,
-        color=colors.black,
-    )
-
-    # FIN PÁGINA 1
-    c.showPage()
-
-    # ---- PAGE 2 ----
-    c.setFont("Helvetica-Bold",10)
+    # Riesgos / aspectos a monitorear
+    c.setFont("Helvetica-Bold", 7)
     c.setFillColor(colors.black)
-    c.drawString(margin_x, H-36, "Evaluación Cognitiva General (continuación)")
-    c.setFont("Helvetica",7)
-    c.drawRightString(W - margin_x, H-36,
-                      f"Evaluado: {candidate_name} · {fecha_eval}")
+    c.drawString(sum_box_x+10, y_sum, "Aspectos a observar / apoyo sugerido:")
+    y_sum -= 12
+    c.setFont("Helvetica", 7)
+    for r in riesgos:
+        wrap_lines = _wrap(c, "• " + r, sum_box_w-20, "Helvetica", 7)
+        for line in wrap_lines:
+            c.drawString(sum_box_x+20, y_sum, line)
+            y_sum -= 10
 
-    # TABLA DETALLE POR DIMENSIÓN (ancha, con espacio)
-    table_x = margin_x
-    table_y_top = H-70
-    table_w = W - 2*margin_x
+    # PERFIL COGNITIVO (barras y puntos)
+    chart_x = margin_left
+    chart_y_bottom = 140  # hacia la parte baja de la página 1
+    chart_w = 300
+    chart_h = 120
 
-    # definimos filas (incluye G)
-    rows = [
-        ("Razonamiento Lógico / Secuencias",        "RL"),
-        ("Atención al Detalle / Precisión",         "AT"),
-        ("Velocidad de Decisión / Juicio rápido",   "VD"),
-        ("Memoria de Trabajo / Retención inmediata","MT"),
-        ("Comprensión de Instrucciones / Lectura",  "CI"),
-        ("Índice Cognitivo Global (G)",             "G"),
+    # recuadro del gráfico opcional
+    c.setStrokeColor(colors.lightgrey)
+    c.setFillColor(colors.white)
+    c.rect(chart_x-4, chart_y_bottom-4, chart_w+8, chart_h+48, stroke=1, fill=1)
+
+    c.setFont("Helvetica-Bold", 8)
+    c.setFillColor(colors.black)
+    c.drawString(chart_x, chart_y_bottom+chart_h+32, "Perfil cognitivo (0–6)")
+
+    # eje Y y grilla
+    c.setStrokeColor(colors.black)
+    c.setLineWidth(1)
+    c.line(chart_x, chart_y_bottom, chart_x, chart_y_bottom+chart_h)
+
+    for lvl in range(0,7):
+        yv = chart_y_bottom + (lvl/6.0)*chart_h
+        c.setFont("Helvetica",6)
+        c.setFillColor(colors.black)
+        c.drawString(chart_x-16, yv-2, str(lvl))
+        c.setStrokeColor(colors.lightgrey)
+        c.line(chart_x, yv, chart_x+chart_w, yv)
+
+    dims_order = [
+        ("RL","RL"),
+        ("AT","AT"),
+        ("VD","VD"),
+        ("MT","MT"),
+        ("CI","CI")
+    ]
+    bar_colors = [
+        colors.HexColor("#1e40af"), # azul oscuro
+        colors.HexColor("#059669"), # verde
+        colors.HexColor("#f97316"), # naranjo
+        colors.HexColor("#6b7280"), # gris
+        colors.HexColor("#0ea5e9"), # celeste
     ]
 
-    row_height = 44
-    header_height = 24
-    table_h = header_height + row_height*len(rows)
+    gap = 12
+    bar_w = (chart_w - gap*(len(dims_order)+1)) / len(dims_order)
+    tops = []
 
+    for i,(key,label) in enumerate(dims_order):
+        norm_val = norm_scores[key]     # 0..6
+        raw_val  = raw_scores[key]      # ej 9
+        total_v  = total_scores[key]    # ej 14
+        leveltxt = qualitative_level(norm_val)
+
+        bx = chart_x + gap + i*(bar_w+gap)
+        bh = (norm_val/6.0)*chart_h
+        by = chart_y_bottom
+
+        c.setStrokeColor(colors.black)
+        c.setFillColor(bar_colors[i])
+        c.rect(bx, by, bar_w, bh, stroke=1, fill=1)
+
+        tops.append((bx+bar_w/2.0, by+bh))
+
+        # Etiquetas bajo cada barra
+        c.setFont("Helvetica-Bold",7)
+        c.setFillColor(colors.black)
+        c.drawCentredString(bx+bar_w/2.0, chart_y_bottom-14, label)
+
+        c.setFont("Helvetica",6)
+        # SOLO un puntaje: mostramos aciertos/total y nivel
+        c.drawCentredString(
+            bx+bar_w/2.0,
+            chart_y_bottom-26,
+            f"{raw_val}/{total_v}  {leveltxt}"
+        )
+
+    # línea negra uniendo puntos
+    c.setStrokeColor(colors.black)
+    c.setLineWidth(1.2)
+    for j in range(len(tops)-1):
+        (x1,y1)=tops[j]
+        (x2,y2)=tops[j+1]
+        c.line(x1,y1,x2,y2)
+    for (px,py) in tops:
+        c.setFillColor(colors.black)
+        c.circle(px,py,2.0,stroke=0,fill=1)
+
+    # leyenda derecha del gráfico
+    legend_x = chart_x + chart_w + 20
+    legend_y = chart_y_bottom + chart_h + 20
+    c.setStrokeColor(colors.lightgrey)
+    c.setFillColor(colors.white)
+    c.rect(legend_x-4, chart_y_bottom-4, 200, chart_h+48, stroke=1, fill=1)
+
+    yy = legend_y
+    c.setFont("Helvetica-Bold",8)
+    c.setFillColor(colors.black)
+    c.drawString(legend_x, yy, "Guía de lectura de dimensiones")
+    yy -= 14
+
+    c.setFont("Helvetica",7)
+    legend_lines = [
+        "RL = Razonamiento Lógico",
+        "AT = Atención al Detalle",
+        "VD = Velocidad de Decisión",
+        "MT = Memoria de Trabajo",
+        "CI = Comprensión de Instrucciones"
+    ]
+    for line in legend_lines:
+        c.drawString(legend_x, yy, line)
+        yy -= 10
+
+    c.setFont("Helvetica",6)
+    c.setFillColor(colors.grey)
+    c.drawString(legend_x, chart_y_bottom+6, "Escala interna 0–6. Uso laboral no clínico.")
+
+    # Pie de página pág 1
+    c.setFont("Helvetica",6)
+    c.setFillColor(colors.grey)
+    c.drawRightString(W - margin_right, 30, "Página 1 / 2")
+
+    c.showPage()
+
+    # ---------------------------
+    # PÁGINA 2
+    # ---------------------------
+
+    c.setFont("Helvetica-Bold",10)
+    c.setFillColor(colors.black)
+    c.drawString(margin_left, H-40, "Detalle por dimensión")
+
+    # Tabla ocupa ancho completo
+    table_x = margin_left
+    table_y_top = H-60
+    table_w = W - margin_left - margin_right
+
+    # Dibujamos caja alrededor de toda la tabla
+    # Calculamos un alto aproximado para 5 filas
+    table_h = 5 * 60 + 30  # fila ~60px + header ~30
     c.setStrokeColor(colors.lightgrey)
     c.setFillColor(colors.white)
     c.rect(table_x, table_y_top - table_h, table_w, table_h, stroke=1, fill=1)
 
-    # Encabezado tabla
-    c.setFont("Helvetica-Bold",9)
+    # Encabezados de tabla
+    head_y = table_y_top - 20
+    c.setFont("Helvetica-Bold",8)
     c.setFillColor(colors.black)
-    c.drawString(table_x+10, table_y_top-16, "Detalle por dimensión")
-
-    # línea bajo título
-    c.setStrokeColor(colors.lightgrey)
-    c.line(table_x, table_y_top-header_height, table_x+table_w, table_y_top-header_height)
 
     # columnas
-    col_dim_x   = table_x+10
-    col_score_x = table_x+240
-    col_lvl_x   = table_x+300
-    col_desc_x  = table_x+360
+    col_dim_x = table_x + 10
+    col_punt_x = table_x + 200
+    col_lvl_x = table_x + 260
+    col_desc_x = table_x + 320
 
-    c.setFont("Helvetica-Bold",7)
-    c.setFillColor(colors.black)
-    c.drawString(col_dim_x,   table_y_top-header_height-12, "Dimensión")
-    c.drawString(col_score_x, table_y_top-header_height-12, "Puntaje")
-    c.drawString(col_lvl_x,   table_y_top-header_height-12, "Nivel")
-    c.drawString(col_desc_x,  table_y_top-header_height-12, "Descripción breve")
+    c.drawString(col_dim_x, head_y, "Dimensión")
+    c.drawString(col_punt_x, head_y, "Puntaje")
+    c.drawString(col_lvl_x, head_y, "Nivel")
+    c.drawString(col_desc_x, head_y, "Descripción breve")
 
-    # líneas divisorias verticales claras
-    c.setStrokeColor(colors.lightgrey)
-    c.line(col_score_x-8, table_y_top-header_height, col_score_x-8, table_y_top-table_h)
-    c.line(col_lvl_x-8,   table_y_top-header_height, col_lvl_x-8,   table_y_top-table_h)
-    c.line(col_desc_x-8,  table_y_top-header_height, col_desc_x-8,  table_y_top-table_h)
+    # línea separadora header
+    c.setStrokeColor(colors.black)
+    c.setLineWidth(0.5)
+    c.line(table_x, head_y-4, table_x+table_w, head_y-4)
 
-    cur_y = table_y_top-header_height-28
-    for (label, key) in rows:
-        # Puntaje bruto /14 excepto G (promedio bruto)
-        if key == "G":
-            raw_txt = f"{G_raw:.1f}/14 aprox"
-            lvl_txt = lvl["G"]
-            desc_txt = desc_map["G"]
-        else:
-            raw_txt = f"{raw_dim[key]}/14"
-            lvl_txt = lvl[key]
-            desc_txt = desc_map[key]
+    row_y = head_y - 16
+    row_gap = 60  # altura estimada por fila con wrap
 
-        # dimensión
-        c.setFont("Helvetica-Bold",7)
-        c.setFillColor(colors.black)
-        c.drawString(col_dim_x, cur_y, label)
+    dims_display = [
+        ("RL","Razonamiento Lógico"),
+        ("AT","Atención al Detalle"),
+        ("VD","Velocidad de Decisión"),
+        ("MT","Memoria de Trabajo"),
+        ("CI","Comprensión de Instrucciones"),
+    ]
 
-        # puntaje
-        c.setFont("Helvetica",7)
-        c.drawString(col_score_x, cur_y, raw_txt)
+    c.setFont("Helvetica",8)
+    for key, label in dims_display:
+        raw_v  = raw_scores[key]
+        tot_v  = total_scores[key]
+        lvl_v  = qualitative_level(norm_scores[key])
+        desc_v = dim_desc[key]
 
-        # nivel
-        c.drawString(col_lvl_x, cur_y, lvl_txt)
+        # columna Dimensión (negrita)
+        c.setFont("Helvetica-Bold",8)
+        c.drawString(col_dim_x, row_y, label)
 
-        # descripción (envuelta, máx 2 líneas)
-        c.setFont("Helvetica",7)
-        lines_desc = wrap_lines(c, desc_txt, table_x+table_w - col_desc_x - 10, font="Helvetica", size=7)
-        printed = 0
-        ld_y = cur_y
-        for ln in lines_desc:
-            c.drawString(col_desc_x, ld_y, ln)
-            ld_y -= 9
-            printed += 1
-            if printed >= 2:
-                break
+        # Puntaje (un puntaje: aciertos/total y nivel textual)
+        c.setFont("Helvetica",8)
+        c.drawString(col_punt_x, row_y, f"{raw_v}/{tot_v}")
+        c.drawString(col_lvl_x,  row_y, lvl_v)
 
-        # línea horizontal separadora
+        # Descripción envuelta
+        desc_y = row_y
+        desc_y = _draw_paragraph(
+            c,
+            desc_v,
+            col_desc_x,
+            desc_y,
+            table_w - (col_desc_x - table_x) - 10,
+            font="Helvetica",
+            size=8,
+            leading=10,
+            color=colors.black,
+            max_lines=None
+        )
+
+        # línea separadora de fila
         c.setStrokeColor(colors.lightgrey)
-        c.line(table_x, cur_y-16, table_x+table_w, cur_y-16)
+        c.setLineWidth(0.5)
+        c.line(table_x, row_y-40, table_x+table_w, row_y-40)
 
-        cur_y -= row_height
+        row_y -= row_gap
 
-    # CAJA CONCLUSIÓN / AJUSTE GLOBAL
-    concl_top = cur_y - 10
-    concl_h   = 90
-    concl_w   = table_w
-    concl_x   = table_x
-    concl_y   = concl_top - concl_h
-
-    c.setStrokeColor(colors.lightgrey)
-    c.setFillColor(colors.white)
-    c.rect(concl_x, concl_y, concl_w, concl_h, stroke=1, fill=1)
-
-    y_concl = concl_top - 16
-    c.setFont("Helvetica-Bold",8)
-    c.setFillColor(colors.black)
-    c.drawString(concl_x+10, y_concl, "Conclusión global")
-    y_concl -= 12
-    c.setFont("Helvetica",7)
-    y_concl = draw_wrapped(
-        c,
-        "Resumen general del desempeño cognitivo observado en esta evaluación:",
-        concl_x+10,
-        y_concl,
-        concl_w-20,
-        font="Helvetica",
-        size=7,
-        leading=9,
-        color=colors.black,
-    )
-
-    y_concl -= 8
-    c.setFont("Helvetica-Bold",7)
-    c.drawString(concl_x+10, y_concl, "Ajuste general al desempeño operativo:")
-    y_concl -= 12
-    c.setFont("Helvetica",7)
-    draw_wrapped(
-        c,
-        ajuste_text,
-        concl_x+10,
-        y_concl,
-        concl_w-20,
-        font="Helvetica",
-        size=7,
-        leading=9,
-        color=colors.black,
-    )
-
-    # CAJA NOTA METODOLÓGICA / FOOTER
-    nota_txt = (
-        "Este informe se basa en las respuestas del test cognitivo adaptado para "
-        "entornos operativos. Los resultados describen tendencias funcionales "
-        "observadas al momento de la evaluación y no constituyen un diagnóstico "
-        "clínico ni, por sí solos, una determinación absoluta de idoneidad. "
-        "Se recomienda complementar esta información con entrevista estructurada, "
-        "verificación de experiencia y evaluación técnica en contexto real."
-    )
-
-    nota_h = 90
-    nota_x = margin_x
-    nota_y_top = 130  # más o menos alto en la página 2
-    nota_y = nota_y_top - nota_h
-    nota_w = W - 2*margin_x
+    # CUADRO NOTA METODOLÓGICA al final página 2
+    note_box_x = margin_left
+    note_box_y_top = 160
+    note_box_w = W - margin_left - margin_right
+    note_box_h = 100
 
     c.setStrokeColor(colors.lightgrey)
     c.setFillColor(colors.white)
-    c.rect(nota_x, nota_y, nota_w, nota_h, stroke=1, fill=1)
+    c.rect(note_box_x, note_box_y_top - note_box_h, note_box_w, note_box_h, stroke=1, fill=1)
 
-    yy_nota = nota_y_top - 16
     c.setFont("Helvetica-Bold",8)
     c.setFillColor(colors.black)
-    c.drawString(nota_x+10, yy_nota, "Nota metodológica")
-    yy_nota -= 12
-    c.setFont("Helvetica",6)
-    draw_wrapped(
-        c,
-        nota_txt,
-        nota_x+10,
-        yy_nota,
-        nota_w-20,
-        font="Helvetica",
-        size=6,
-        leading=8,
-        color=colors.grey,
+    c.drawString(note_box_x+10, note_box_y_top-16, "Nota metodológica")
+
+    nota_text = (
+        "Este informe describe el desempeño cognitivo observado en tareas de razonamiento lógico, "
+        "atención a detalles, toma de decisión inicial, memoria de trabajo y comprensión de instrucciones. "
+        "Los resultados reflejan tendencias funcionales para el trabajo y NO constituyen diagnóstico clínico. "
+        "Se recomienda complementar con entrevista estructurada, verificación de experiencia y otras "
+        "pruebas técnicas según el cargo."
     )
 
-    # Pie de página
+    _draw_paragraph(
+        c,
+        nota_text,
+        note_box_x+10,
+        note_box_y_top-32,
+        note_box_w-20,
+        font="Helvetica",
+        size=7,
+        leading=10,
+        color=colors.black,
+        max_lines=None
+    )
+
+    # Pie de página pág 2
     c.setFont("Helvetica",6)
     c.setFillColor(colors.grey)
-    c.drawRightString(W - margin_x, 36,
-        "Uso interno RR.HH. · Evaluación Cognitiva General · No clínico")
+    c.drawRightString(W - margin_right, 30, "Página 2 / 2 · Uso interno RR.HH. · Evaluación Cognitiva General (IQ Adaptado) · No clínico")
 
     c.showPage()
     c.save()
     buf.seek(0)
     return buf.read()
 
+
 # ------------------------------------------------------------
-# ENVÍO DE CORREO
+# ENVÍO EMAIL CON PDF
 # ------------------------------------------------------------
+
 def send_email_with_pdf(to_email, pdf_bytes, filename, subject, body_text):
     msg = EmailMessage()
     msg["Subject"] = subject
@@ -1268,13 +1221,20 @@ def send_email_with_pdf(to_email, pdf_bytes, filename, subject, body_text):
         smtp.login(FROM_ADDR, APP_PASS)
         smtp.send_message(msg)
 
+
 # ------------------------------------------------------------
 # FINALIZAR, GENERAR PDF, ENVIAR
 # ------------------------------------------------------------
+
 def finalize_and_send():
     scores = compute_scores(st.session_state.answers)
-    fortalezas, monitoreo = build_strengths_and_risks(scores["norm"], scores["G_norm"])
-    ajuste_text = global_fit_text(scores["G_norm"])
+
+    raw_scores   = scores["raw"]     # dict {RL: x, ...}
+    total_scores = scores["total"]   # dict {RL:14, ...}
+    norm_scores  = scores["norm"]    # dict {RL: x/6,...}
+
+    dim_desc = build_dim_descriptions(norm_scores)
+    fortalezas, riesgos = build_strengths_and_risks(norm_scores)
 
     now_txt = datetime.now().strftime("%d/%m/%Y %H:%M")
 
@@ -1282,10 +1242,12 @@ def finalize_and_send():
         candidate_name   = st.session_state.candidate_name,
         fecha_eval       = now_txt,
         evaluator_email  = st.session_state.evaluator_email,
-        scores           = scores,
+        raw_scores       = raw_scores,
+        total_scores     = total_scores,
+        norm_scores      = norm_scores,
         fortalezas       = fortalezas,
-        monitoreo        = monitoreo,
-        ajuste_text      = ajuste_text,
+        riesgos          = riesgos,
+        dim_desc         = dim_desc
     )
 
     if not st.session_state.already_sent:
@@ -1293,48 +1255,56 @@ def finalize_and_send():
             send_email_with_pdf(
                 to_email   = st.session_state.evaluator_email,
                 pdf_bytes  = pdf_bytes,
-                filename   = "Informe_Cognitivo_General.pdf",
+                filename   = "Informe_Cognitivo_IQ.pdf",
                 subject    = "Informe Evaluación Cognitiva General (IQ Adaptado)",
                 body_text  = (
-                    "Adjunto informe de Evaluación Cognitiva General "
-                    f"({st.session_state.candidate_name}). "
-                    "Uso interno RR.HH."
+                    "Adjunto informe interno de Evaluación Cognitiva General (IQ Adaptado)\n"
+                    f"Candidato: {st.session_state.candidate_name}\n"
+                    "Uso interno RR.HH. / No clínico."
                 ),
             )
         except Exception:
+            # si hay error de correo no rompemos la app
             pass
         st.session_state.already_sent = True
 
+
 # ------------------------------------------------------------
-# CALLBACK DE RESPUESTA
+# CALLBACK de respuesta (una sola pulsación por pregunta)
 # ------------------------------------------------------------
-def choose_answer(option_idx: int):
+
+def choose_answer(option_index: int):
     q_idx = st.session_state.current_q
-    st.session_state.answers[q_idx] = option_idx
+    st.session_state.answers[q_idx] = option_index
 
     if q_idx < TOTAL_QUESTIONS - 1:
         st.session_state.current_q += 1
         st.session_state._need_rerun = True
     else:
+        # test terminado
         finalize_and_send()
         st.session_state.stage = "done"
         st.session_state._need_rerun = True
 
+
 # ------------------------------------------------------------
-# VISTAS
+# VISTAS STREAMLIT
 # ------------------------------------------------------------
-def view_info():
-    st.markdown("### Evaluación Cognitiva General")
-    st.info("Estos datos se utilizan para generar el informe PDF interno y enviarlo automáticamente al correo indicado.")
+
+def view_info_form():
+    st.markdown("### Evaluación Cognitiva General (IQ Adaptado)")
+    st.write("Este test mide razonamiento lógico, atención a detalles, toma de decisión inicial, memoria de trabajo y comprensión de instrucciones.")
+    st.write("Al finalizar el test se genera un informe automático en PDF y se envía al correo del evaluador.")
 
     st.session_state.candidate_name = st.text_input(
         "Nombre del evaluado",
         value=st.session_state.candidate_name,
         placeholder="Nombre completo"
     )
+
     st.session_state.evaluator_email = st.text_input(
         "Correo del evaluador (RR.HH. / Supervisor)",
-        value=st.session_state.evaluator_email,
+        value=st.session_state.evaluator_email or FROM_ADDR,
         placeholder="nombre@empresa.com"
     )
 
@@ -1343,18 +1313,37 @@ def view_info():
         len(st.session_state.evaluator_email.strip()) > 0
     )
 
-    if st.button("Comenzar test cognitivo (70 preguntas)", type="primary", disabled=not ok, use_container_width=True):
+    st.markdown(
+        """
+        <div style="
+            background:#f8fafc;
+            border:1px solid #e2e8f0;
+            border-radius:8px;
+            padding:10px 14px;
+            font-size:.8rem;
+            color:#475569;
+            margin-top:12px;">
+            <b>Confidencialidad:</b> Uso interno de RR.HH. El evaluado no recibe copia directa del informe.
+            Este instrumento no es diagnóstico clínico.
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    if st.button("Comenzar test", type="primary", disabled=not ok, use_container_width=True):
         st.session_state.current_q = 0
         st.session_state.answers = {i: None for i in range(TOTAL_QUESTIONS)}
         st.session_state.already_sent = False
         st.session_state.stage = "test"
         st.session_state._need_rerun = True
 
+
 def view_test():
     q_idx = st.session_state.current_q
     q = QUESTIONS[q_idx]
-    progreso = (q_idx+1)/TOTAL_QUESTIONS
+    progreso = (q_idx + 1) / TOTAL_QUESTIONS
 
+    # Header visual
     st.markdown(
         f"""
         <div style="
@@ -1367,7 +1356,7 @@ def view_test():
             align-items:center;
             flex-wrap:wrap;">
             <div style="font-weight:700;">
-                Test Cognitivo General (70 ítems)
+                Test Cognitivo General (IQ Adaptado) · 70 ítems
             </div>
             <div style="
                 background:rgba(255,255,255,0.25);
@@ -1383,6 +1372,7 @@ def view_test():
 
     st.progress(progreso)
 
+    # Tarjeta pregunta
     st.markdown(
         f"""
         <div style="
@@ -1393,7 +1383,7 @@ def view_test():
             box-shadow:0 12px 24px rgba(0,0,0,0.06);
             margin-top:12px;">
             <p style="
-                margin:0;
+                margin:0 0 12px 0;
                 font-size:1.05rem;
                 color:#1e293b;
                 line-height:1.45;">
@@ -1404,16 +1394,17 @@ def view_test():
         unsafe_allow_html=True
     )
 
-    # opciones en 2 columnas
+    # Alternativas (4 botones)
     cols = st.columns(2)
-    for i_opt, opt_text in enumerate(q["options"]):
-        cols[i_opt % 2].button(
-            opt_text,
-            key=f"q{q_idx}_opt{i_opt}",
-            on_click=choose_answer,
-            args=(i_opt,),
-            use_container_width=True
-        )
+    for i_opt, option_text in enumerate(q["options"]):
+        with cols[i_opt % 2]:
+            st.button(
+                option_text,
+                key=f"opt_{q_idx}_{i_opt}",
+                use_container_width=True,
+                on_click=choose_answer,
+                args=(i_opt,)
+            )
 
     st.markdown(
         """
@@ -1425,12 +1416,13 @@ def view_test():
             font-size:.8rem;
             color:#475569;
             margin-top:12px;">
-            <b>Confidencialidad:</b> Uso interno RR.HH. / Selección y capacitación.
-            El evaluado no recibe copia directa del informe.
+            <b>Nota:</b> Seleccione la alternativa que considere correcta.
+            Una vez elegida, pasará automáticamente a la siguiente pregunta.
         </div>
         """,
         unsafe_allow_html=True
     )
+
 
 def view_done():
     st.markdown(
@@ -1476,11 +1468,13 @@ def view_done():
         unsafe_allow_html=True
     )
 
+
 # ------------------------------------------------------------
-# FLUJO PRINCIPAL
+# CONTROL DE FLUJO
 # ------------------------------------------------------------
+
 if st.session_state.stage == "info":
-    view_info()
+    view_info_form()
 
 elif st.session_state.stage == "test":
     if st.session_state.current_q >= TOTAL_QUESTIONS:
@@ -1489,10 +1483,11 @@ elif st.session_state.stage == "test":
     view_test()
 
 elif st.session_state.stage == "done":
+    # nos aseguramos de que el PDF ya esté enviado
     finalize_and_send()
     view_done()
 
-# Control de rerun suave para pasar de una pregunta a la siguiente sin doble click
+# Rerun controlado para navegación fluida sin doble click
 if st.session_state._need_rerun:
     st.session_state._need_rerun = False
     st.rerun()
