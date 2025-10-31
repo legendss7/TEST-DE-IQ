@@ -1,10 +1,13 @@
 # ============================================================
 # TEST COGNITIVO OPERATIVO (IQ ADAPTADO) · 70 ÍTEMS
-# Visual estilo EPQR (card blanca + barra progreso)
-# PDF ordenado y ancho completo en secciones largas
-# Envío automático de PDF al evaluador (sin mostrar informe en pantalla)
-# Pantalla final: "Evaluación finalizada"
-# Requiere: pip install streamlit reportlab
+# Visual estilo EPQR en la app
+# PDF con layout tipo "miperfilDISC" (gráfico izq + resumen der + sliders + perfil general)
+#
+# Requiere:
+#   pip install streamlit reportlab
+#
+# Envío automático del PDF al correo del evaluador al terminar.
+# Pantalla final sólo dice "Evaluación finalizada".
 # ============================================================
 
 import streamlit as st
@@ -29,25 +32,21 @@ st.set_page_config(
 )
 
 # -------------------------------------------------
-# CREDENCIALES DE CORREO (reemplaza por las tuyas reales si cambian)
+# CREDENCIALES DE CORREO
 # -------------------------------------------------
 FROM_ADDR = "jo.tajtaj@gmail.com"
-APP_PASS  = "nlkt kujl ebdg cyts"   # clave de app Gmail
-DEFAULT_EVAL_EMAIL = "jo.tajtaj@gmail.com"  # a quién enviar el informe
+APP_PASS  = "nlkt kujl ebdg cyts"
+DEFAULT_EVAL_EMAIL = "jo.tajtaj@gmail.com"
 
 
 # -------------------------------------------------
-# DEFINICIÓN DE DIMENSIONES COGNITIVAS
-# Vamos a medir 5 dimensiones base + índice global:
-# RL = Razonamiento Lógico / Secuencias
-# AT = Atención al Detalle / Precisión
-# VD = Velocidad de Decisión / Juicio rápido
-# MT = Memoria de Trabajo / Retención inmediata
-# CI = Comprensión de Instrucciones / Lectura Operativa
-#
-# Cada dimensión tendrá 14 ítems => 14 x 5 = 70
-# Nota: para simplificar el ejemplo, los ítems son sí/no.
-# En producción puedes reemplazar por reactivos reales tipo matrices / analogías, etc.
+# PREGUNTAS (70 ítems, 5 dimensiones cognitivas x 14 ítems)
+# RL = Razonamiento Lógico
+# AT = Atención al Detalle
+# VD = Velocidad de Decisión
+# MT = Memoria de Trabajo
+# CI = Comprensión de Instrucciones
+# ítems *_rev se puntúan al revés (suma si responde "No")
 # -------------------------------------------------
 
 QUESTIONS = [
@@ -67,7 +66,7 @@ QUESTIONS = [
     {"text": "Detecto rápidamente cuándo una indicación no tiene sentido.", "cat": "RL"},
     {"text": "Para mí es difícil entender relaciones lógicas si no me las explican dos veces.", "cat": "RL_rev"},
 
-    # ---------- AT: Atención al Detalle / Precisión (14 ítems)
+    # ---------- AT: Atención al Detalle (14 ítems)
     {"text": "Suelo notar detalles pequeños (etiquetas, números, series) que otros pasan por alto.", "cat": "AT"},
     {"text": "Puedo revisar información repetitiva sin distraerme.", "cat": "AT"},
     {"text": "Me doy cuenta si hay un dígito cambiado en un código largo.", "cat": "AT"},
@@ -83,7 +82,7 @@ QUESTIONS = [
     {"text": "Me concentro bien incluso con ruido y distracciones.", "cat": "AT"},
     {"text": "Soy propenso/a a errores chicos que después generan reproceso.", "cat": "AT_rev"},
 
-    # ---------- VD: Velocidad de Decisión / Juicio rápido (14 ítems)
+    # ---------- VD: Velocidad de Decisión (14 ítems)
     {"text": "Tomo decisiones operativas con rapidez cuando hay urgencia.", "cat": "VD"},
     {"text": "En tareas nuevas tardo demasiado antes de actuar.", "cat": "VD_rev"},
     {"text": "Cuando hay que priorizar, puedo elegir qué va primero sin dudar.", "cat": "VD"},
@@ -99,7 +98,7 @@ QUESTIONS = [
     {"text": "Mantengo claridad mental cuando todos piden algo al mismo tiempo.", "cat": "VD"},
     {"text": "Necesito demasiado rato antes de decidir qué hacer ante un imprevisto.", "cat": "VD_rev"},
 
-    # ---------- MT: Memoria de Trabajo / Retención inmediata (14 ítems)
+    # ---------- MT: Memoria de Trabajo (14 ítems)
     {"text": "Puedo recordar 2 o 3 instrucciones seguidas sin tener que preguntarlas de nuevo.", "cat": "MT"},
     {"text": "Se me olvidan rápido los pasos cuando me los acaban de explicar.", "cat": "MT_rev"},
     {"text": "Retengo ubicaciones de herramientas o insumos sin anotarlas.", "cat": "MT"},
@@ -115,7 +114,7 @@ QUESTIONS = [
     {"text": "Mantengo en mente cambios de turno recién comunicados.", "cat": "MT"},
     {"text": "Necesito anotar todo o si no lo olvido al tiro.", "cat": "MT_rev"},
 
-    # ---------- CI: Comprensión de Instrucciones / Lectura Operativa (14 ítems)
+    # ---------- CI: Comprensión de Instrucciones (14 ítems)
     {"text": "Puedo leer una instrucción corta y aplicarla correctamente.", "cat": "CI"},
     {"text": "Necesito que me muestren físicamente la tarea porque leerla no me basta.", "cat": "CI_rev"},
     {"text": "Entiendo advertencias escritas de seguridad sin ayuda adicional.", "cat": "CI"},
@@ -131,18 +130,15 @@ QUESTIONS = [
     {"text": "Puedo seguir una orden escrita aun si el supervisor no está presente.", "cat": "CI"},
     {"text": "Evito leer documentos largos porque siento que no los entiendo bien.", "cat": "CI_rev"},
 ]
-
 TOTAL_QUESTIONS = len(QUESTIONS)  # 70
 
 
 # -------------------------------------------------
-# PERFILES DE CARGO (rangos esperados promedio bruto de cada dimensión)
-# Aquí definimos el ajuste al cargo. Los rangos son ejemplo.
+# PERFILES DE CARGO (rangos esperados en bruto /14)
 # -------------------------------------------------
 JOB_PROFILES = {
     "operario": {
         "title": "Operario de Producción",
-        # Rangos esperados en puntaje bruto /14 por dimensión
         "req": {
             "RL": (6, 14),
             "AT": (7, 14),
@@ -213,48 +209,29 @@ if "already_sent" not in st.session_state:
 
 
 # -------------------------------------------------
-# SCORING / PERFIL COGNITIVO
-# Reglas:
-#   - cat normal (RL, AT, VD, MT, CI): sumar 1 si responde "Sí"/1.
-#   - cat con "_rev": sumar 1 si responde "No"/0 (porque son ítems invertidos).
-# G (global) = promedio bruto de las 5 dimensiones en 0-14, escalado /10 para el PDF.
+# SCORING
 # -------------------------------------------------
 def compute_scores(ans_dict):
-    raw = {
-        "RL": 0,
-        "AT": 0,
-        "VD": 0,
-        "MT": 0,
-        "CI": 0,
-    }
-
+    raw = {"RL": 0, "AT": 0, "VD": 0, "MT": 0, "CI": 0}
     for idx, q in enumerate(QUESTIONS):
         a = ans_dict.get(idx)
         if a is None:
             continue
         cat = q["cat"]
-
         if cat.endswith("_rev"):
             base = cat.replace("_rev", "")
-            # Suma si respondió NO (0) en ítem inverso
-            if a == 0:
+            if a == 0:  # NO suma en invertida
                 raw[base] += 1
         else:
-            # normal: suma si respondió SÍ (1)
-            if a == 1:
+            if a == 1:  # SÍ suma en directa
                 raw[cat] += 1
-
-    # promedio bruto para global
+    # índice global promedio bruto
     avg_raw = (raw["RL"] + raw["AT"] + raw["VD"] + raw["MT"] + raw["CI"]) / 5.0
-    raw["G"] = avg_raw  # G se maneja aparte en PDF
-
+    raw["G"] = avg_raw
     return raw
 
 
 def level_from_raw(v14):
-    # Clasificación simple
-    # >=9/14 "Alto", >=6/14 "Medio", <6 "Bajo"
-    # Para G usamos el mismo criterio pero con escala /14 aprox
     if v14 >= 9:
         return "Alto"
     elif v14 >= 6:
@@ -264,164 +241,93 @@ def level_from_raw(v14):
 
 
 def build_dim_descriptions(raw_scores):
-    """
-    Devuelve un dict por dimensión con texto breve
-    para la tabla 'Detalle por dimensión'.
-    """
     desc = {}
-
-    RL = raw_scores["RL"]
-    AT = raw_scores["AT"]
-    VD = raw_scores["VD"]
-    MT = raw_scores["MT"]
-    CI = raw_scores["CI"]
-    G  = raw_scores["G"]
+    RL = raw_scores["RL"]; AT = raw_scores["AT"]; VD = raw_scores["VD"]
+    MT = raw_scores["MT"]; CI = raw_scores["CI"]; G = raw_scores["G"]
 
     # RL
     if RL >= 9:
-        desc["RL"] = (
-            "Capacidad sólida para identificar secuencias lógicas, "
-            "entender causas/efectos y detectar inconsistencias en procesos."
-        )
+        desc["RL"] = "Analiza causas/efectos y detecta errores lógicos con rapidez."
     elif RL >= 6:
-        desc["RL"] = (
-            "Muestra razonamiento operativo adecuado para interpretar pasos "
-            "y detectar errores comunes."
-        )
+        desc["RL"] = "Razonamiento suficiente para entender pasos y detectar fallas comunes."
     else:
-        desc["RL"] = (
-            "Podría requerir apoyo extra para detectar fallas lógicas o "
-            "anticipar el paso siguiente sin guía directa."
-        )
+        desc["RL"] = "Podría requerir guía adicional para interpretar secuencias o causas."
 
     # AT
     if AT >= 9:
-        desc["AT"] = (
-            "Destaca en precisión visual y control de detalles pequeños, "
-            "reduciendo reprocesos por errores finos."
-        )
+        desc["AT"] = "Alto foco en detalle y control visual, minimiza errores finos."
     elif AT >= 6:
-        desc["AT"] = (
-            "Mantiene un nivel práctico de atención al detalle y consistencia "
-            "en tareas repetitivas."
-        )
+        desc["AT"] = "Atención al detalle funcional en tareas repetitivas."
     else:
-        desc["AT"] = (
-            "Puede presentar deslices en tareas finas o repetitivas, "
-            "lo que sugiere necesidad de verificación adicional."
-        )
+        desc["AT"] = "Riesgo de errores pequeños en tareas finas o monótonas."
 
     # VD
     if VD >= 9:
-        desc["VD"] = (
-            "Toma decisiones ágiles frente a urgencia, prioriza y ejecuta "
-            "con rapidez sin bloquearse."
-        )
+        desc["VD"] = "Decide rápido frente a urgencias y organiza prioridades bajo presión."
     elif VD >= 6:
-        desc["VD"] = (
-            "Responde de manera funcional en escenarios con presión temporal, "
-            "requiriendo confirmación ocasional."
-        )
+        desc["VD"] = "Toma decisiones operativas con relativa agilidad, requiere confirmación puntual."
     else:
-        desc["VD"] = (
-            "Puede dudar ante cambios rápidos o imprevistos; "
-            "podría necesitar instrucciones claras en caliente."
-        )
+        desc["VD"] = "Puede dudar ante cambios bruscos; prefiere instrucciones claras al momento."
 
     # MT
     if MT >= 9:
-        desc["MT"] = (
-            "Retiene instrucciones recientes y las replica con fidelidad, "
-            "lo que favorece la continuidad operativa."
-        )
+        desc["MT"] = "Retiene instrucciones recientes con fidelidad y las replica correctamente."
     elif MT >= 6:
-        desc["MT"] = (
-            "Memoria de trabajo adecuada para seguir varios pasos simples "
-            "sin necesidad de repetir."
-        )
+        desc["MT"] = "Memoria de trabajo adecuada para seguir varios pasos simples seguidos."
     else:
-        desc["MT"] = (
-            "Podría requerir instrucciones reiteradas o apoyo escrito "
-            "para sostener secuencias de pasos."
-        )
+        desc["MT"] = "Podría necesitar repetición o apoyo escrito para no perder secuencia."
 
     # CI
     if CI >= 9:
-        desc["CI"] = (
-            "Interpreta instrucciones escritas, códigos y advertencias "
-            "con claridad, pudiendo actuar con mínima supervisión."
-        )
+        desc["CI"] = "Comprende instrucciones escritas y procedimientos formales con poca supervisión."
     elif CI >= 6:
-        desc["CI"] = (
-            "Comprende pautas básicas por escrito y puede aplicarlas "
-            "con apoyo moderado."
-        )
+        desc["CI"] = "Interpreta pautas escritas básicas y puede aplicarlas con apoyo moderado."
     else:
-        desc["CI"] = (
-            "Podría necesitar refuerzo verbal o demostración práctica "
-            "antes de aplicar instrucciones nuevas."
-        )
+        desc["CI"] = "Puede requerir demostración práctica adicional antes de ejecutar instrucciones nuevas."
 
-    # G (global)
+    # G
     if G >= 9:
-        desc["G"] = (
-            "Describe un perfil cognitivo global alto, con recursos sólidos "
-            "para comprender, decidir y sostener tareas bajo presión."
-        )
+        desc["G"] = "Perfil cognitivo global alto, con recursos sólidos para entender, priorizar y sostener tareas."
     elif G >= 6:
-        desc["G"] = (
-            "Indica un desempeño global funcional para entornos operativos, "
-            "con capacidad de aprender y sostener instrucciones."
-        )
+        desc["G"] = "Desempeño general funcional para entornos operativos estándar, con capacidad de aprendizaje directo."
     else:
-        desc["G"] = (
-            "Sugiere necesidad de acompañamiento inicial más cercano "
-            "para asegurar comprensión y ejecución estable."
-        )
+        desc["G"] = "Puede requerir acompañamiento inicial cercano para asegurar ejecución consistente."
 
     return desc
 
 
 def build_strengths_and_risks(raw_scores):
-    """
-    Genera listas de fortalezas y aspectos a monitorear para el bloque
-    'Resumen cognitivo observado'.
-    """
-    RL = raw_scores["RL"]
-    AT = raw_scores["AT"]
-    VD = raw_scores["VD"]
-    MT = raw_scores["MT"]
-    CI = raw_scores["CI"]
+    RL = raw_scores["RL"]; AT = raw_scores["AT"]; VD = raw_scores["VD"]
+    MT = raw_scores["MT"]; CI = raw_scores["CI"]
 
     fortalezas = []
     riesgos = []
 
     if RL >= 9:
-        fortalezas.append("Capacidad para detectar fallas lógicas y anticipar pasos críticos.")
+        fortalezas.append("Analiza causas y consecuencias de manera lógica.")
     elif RL < 6:
-        riesgos.append("Podría requerir guía adicional para interpretar secuencias y causas/efectos.")
+        riesgos.append("Puede necesitar apoyo para interpretar secuencias y lógica de proceso.")
 
     if AT >= 9:
-        fortalezas.append("Control de detalle y consistencia visual que reduce reprocesos.")
+        fortalezas.append("Control de calidad visual y precisión en tareas repetitivas.")
     elif AT < 6:
-        riesgos.append("Riesgo de errores menores en tareas repetitivas o muy finas.")
+        riesgos.append("Riesgo de errores finos o descuidos operativos bajo cansancio.")
 
     if VD >= 9:
-        fortalezas.append("Toma decisiones rápida en entornos dinámicos.")
+        fortalezas.append("Toma decisiones rápidas en situaciones de presión.")
     elif VD < 6:
-        riesgos.append("Puede dudar ante cambios urgentes; mejor con instrucciones claras.")
+        riesgos.append("Puede dudar ante cambios urgentes; requiere instrucciones claras en caliente.")
 
     if MT >= 9:
-        fortalezas.append("Retención inmediata estable, replica instrucciones con fidelidad.")
+        fortalezas.append("Retiene instrucciones recientes y las replica fielmente.")
     elif MT < 6:
-        riesgos.append("Puede necesitar que le repitan o dejarle apuntes visibles.")
+        riesgos.append("Puede requerir repetición o apoyo escrito en secuencias largas.")
 
     if CI >= 9:
-        fortalezas.append("Comprende instrucciones escritas y las ejecuta con autonomía.")
+        fortalezas.append("Comprende pautas y advertencias escritas sin depender de supervisión.")
     elif CI < 6:
-        riesgos.append("Podría requerir demostración práctica adicional antes de actuar.")
+        riesgos.append("Podría necesitar demostración práctica adicional antes de ejecutar lo leído.")
 
-    # Limitar tamaño visual
     return fortalezas[:5], riesgos[:5]
 
 
@@ -429,54 +335,49 @@ def build_global_desc(raw_scores):
     G = raw_scores["G"]
     if G >= 9:
         return (
-            "El perfil global sugiere recursos cognitivos sólidos para ejecutar, "
-            "priorizar y sostener instrucciones en ritmo operativo acelerado."
+            "Describe un funcionamiento analítico y preciso, con buena velocidad "
+            "de ejecución y retención de instrucciones."
         )
     elif G >= 6:
         return (
-            "El desempeño cognitivo global se considera funcional para entornos "
-            "operativos estándar, con capacidad de aprendizaje directo en el puesto."
+            "Refleja un funcionamiento adecuado para entornos operativos estándar, "
+            "con capacidad de aprender la tarea y sostener calidad aceptable."
         )
     else:
         return (
-            "El desempeño indica que podría requerir acompañamiento inicial más "
-            "cercano y supervisión clara para asegurar consistencia en la tarea."
+            "Sugiere necesidad de apoyo cercano al inicio para asegurar "
+            "estabilidad en la ejecución y en el seguimiento de instrucciones."
         )
 
 
 def cargo_fit_text(job_key, raw_scores):
-    """
-    Devuelve texto de ajuste al cargo. Si todas las dimensiones
-    están dentro del rango esperado -> "CONSISTENTE".
-    Si alguna queda fuera -> "NO CONSISTENTE".
-    """
     profile = JOB_PROFILES[job_key]
-    req = profile["req"]  # dict {dim:(min,max)}
     cargo_name = profile["title"]
+    req = profile["req"]
 
     ok_all = True
     for dim, (mn, mx) in req.items():
-        got = raw_scores[dim]
-        if not (got >= mn and got <= mx):
+        val = raw_scores[dim]
+        if not (val >= mn and val <= mx):
             ok_all = False
             break
 
     if ok_all:
         return (
-            f"Ajuste al cargo: El perfil evaluado se considera "
-            f"GLOBALMENTE CONSISTENTE con las exigencias habituales "
-            f"del cargo {cargo_name}."
+            f"Para el cargo {cargo_name}: Se observa un perfil que calza con las "
+            f"exigencias típicas del puesto."
         )
     else:
         return (
-            f"Ajuste al cargo: El perfil evaluado NO SE CONSIDERA CONSISTENTE "
-            f"con las exigencias habituales del cargo {cargo_name}."
+            f"Para el cargo {cargo_name}: Se observan diferencias con lo esperado "
+            f"en al menos una dimensión clave del rol."
         )
 
 
 # -------------------------------------------------
-# UTILIDADES PARA PDF (con la nueva maquetación corregida)
+# FUNCIONES DE DIBUJO PDF (ESTILO DISC)
 # -------------------------------------------------
+
 def _wrap(c, text, width, font="Helvetica", size=8):
     words = text.split()
     lines = []
@@ -504,88 +405,134 @@ def _draw_par(c, text, x, y, width, font="Helvetica", size=8,
         y -= leading
     return y
 
-def generate_pdf_iq(candidate_name,
-                    cargo_name,
-                    fecha_eval,
-                    evaluator_email,
-                    raw_scores,
-                    strengths_list,
-                    monitor_list,
-                    desc_by_dim,
-                    global_desc,
-                    ajuste_text,
-                    nota_text):
+def draw_slider(c, x, y, w, left_label, right_label, value_0_to_1):
     """
-    Layout final ajustado:
-    - Header
-    - Izquierda: gráfico barras (0-10 visual)
-    - Derecha: datos + guía
-    - Caja ancho completo: Resumen cognitivo observado
-    - Caja ancho completo: Detalle por dimensión
-    - Caja ancho completo: Desempeño Global / Ajuste / Nota
+    value_0_to_1 = 0.0 izquierda, 1.0 derecha
+    Dibujamos una línea gris y un punto negro que marca la posición.
+    """
+    line_y = y - 5
+    c.setStrokeColor(colors.black)
+    c.setLineWidth(0.5)
+    c.line(x, line_y, x + w, line_y)
+
+    # etiquetas
+    c.setFont("Helvetica",7)
+    c.setFillColor(colors.black)
+    c.drawString(x, y+2, left_label)
+    c.drawRightString(x + w, y+2, right_label)
+
+    # punto
+    px = x + w * value_0_to_1
+    c.setFillColor(colors.black)
+    c.circle(px, line_y, 2.5, stroke=0, fill=1)
+
+def pct_from_raw14(v14):
+    # 0..14 → 0..100
+    return (v14 / 14.0) * 100.0
+
+def slider_pos_from_two(v_left, v_right):
+    """
+    Damos una posición entre dos polos.
+    Ejemplo: "detalle" vs "pragmatismo":
+       - usamos AT (detalle) vs VD (rapidez).
+       value = AT / (AT+VD).
+    Si la suma es 0, centramos.
+    """
+    s = v_left + v_right
+    if s <= 0:
+        return 0.5
+    return v_left / s  # 0..1
+
+
+def generate_pdf_iq(
+    candidate_name,
+    cargo_name,
+    fecha_eval,
+    evaluator_email,
+    raw_scores,
+    fortalezas,
+    riesgos,
+    global_desc,
+    ajuste_text
+):
+    """
+    Nuevo layout tipo DISC:
+    - Encabezado con logo y título arriba.
+    - Izquierda: gráfico de barras (%).
+    - Derecha: cuadro con datos del candidato + bullets resumen.
+    - Abajo: sliders conductuales (tendencias).
+    - Último bloque: "Perfil general" (global_desc + ajuste_text).
     """
 
     buf = BytesIO()
-    W, H = A4
+    W, H = A4  # 595 x 842 aprox
     c = canvas.Canvas(buf, pagesize=A4)
 
     margin_left = 36
     margin_right = 36
     usable_w = W - margin_left - margin_right
 
-    # ---------- HEADER ----------
-    c.setFont("Helvetica-Bold",10)
-    c.drawString(margin_left, H-40, "EMPRESA / LOGO")
+    # -------------------------------------------------
+    # HEADER
+    # -------------------------------------------------
+    # Logo ficticio lado izquierdo
+    c.setFont("Helvetica-Bold",12)
+    c.setFillColor(colors.black)
+    c.drawString(margin_left, H-40, "miPerfilIQ®")
     c.setFont("Helvetica",7)
-    c.drawString(margin_left, H-55, "Evaluación de capacidad cognitiva aplicada al rol")
+    c.drawString(margin_left, H-55, "capacidad cognitiva & empleo")
 
-    c.setFont("Helvetica-Bold",11)
-    c.drawRightString(W-margin_right, H-40, "Perfil Cognitivo Operativo (IQ Adaptado)")
-    c.setFont("Helvetica",7)
-    c.drawRightString(W-margin_right, H-55,
-        "Uso interno RR.HH. / Procesos productivos · No clínico")
+    # Título lado derecho
+    c.setFont("Helvetica",8)
+    c.setFillColor(colors.black)
+    c.drawRightString(W-margin_right, H-40, "Perfil cognitivo operativo - Confidencial RR.HH.")
 
-    # ---------- GRÁFICO IZQUIERDA ----------
+    # -------------------------------------------------
+    # GRAFICO DE BARRAS IZQUIERDA
+    # -------------------------------------------------
     chart_x = margin_left
-    chart_y_bottom = H-260
-    chart_w = 240
-    chart_h = 120
+    chart_y_bottom = H-300
+    chart_w = 180
+    chart_h = 140
 
+    # eje Y %
     c.setStrokeColor(colors.black)
     c.setLineWidth(1)
-    # eje Y
     c.line(chart_x, chart_y_bottom, chart_x, chart_y_bottom+chart_h)
 
-    # grid 0..10
-    for lvl in range(0,11):
-        yv = chart_y_bottom + (lvl/10.0)*chart_h
+    # rejilla 0..100
+    for tick in [0,20,40,60,80,100]:
+        yv = chart_y_bottom + (tick/100.0)*chart_h
         c.setFont("Helvetica",6)
         c.setFillColor(colors.black)
-        c.drawString(chart_x-15, yv-2, str(lvl))
+        c.drawString(chart_x-20, yv-2, str(tick))
         c.setStrokeColor(colors.lightgrey)
         c.line(chart_x, yv, chart_x+chart_w, yv)
 
-    dims_order = [
+    dims_for_chart = [
         ("RL","RL", colors.HexColor("#3b82f6")),
         ("AT","AT", colors.HexColor("#22c55e")),
         ("VD","VD", colors.HexColor("#f97316")),
         ("MT","MT", colors.HexColor("#6b7280")),
         ("CI","CI", colors.HexColor("#0ea5b7")),
+        ("G","G",  colors.HexColor("#2563eb")),  # global
     ]
 
-    def to_scale10(v14):
-        return (v14/14.0)*10.0
-
-    gap = 10
-    bar_w = (chart_w - gap*(len(dims_order)+1)) / len(dims_order)
+    gap = 8
+    bar_w = (chart_w - gap*(len(dims_for_chart)+1)) / len(dims_for_chart)
     tops = []
 
-    for i,(key,label,color_bar) in enumerate(dims_order):
-        bruto = raw_scores.get(key,0)
-        val10 = to_scale10(bruto)
+    for i,(key,label,color_bar) in enumerate(dims_for_chart):
+        if key == "G":
+            # G es promedio bruto 0..14 -> % usando el mismo mapeo
+            bruto = raw_scores["G"]  # 0..14
+            pct_val = (bruto/14.0)*100.0
+        else:
+            bruto = raw_scores.get(key,0)
+            pct_val = pct_from_raw14(bruto)
 
         bx = chart_x + gap + i*(bar_w+gap)
-        bh = (val10/10.0)*chart_h
+        bh = (pct_val/100.0)*chart_h
         by = chart_y_bottom
 
         c.setStrokeColor(colors.black)
@@ -594,280 +541,235 @@ def generate_pdf_iq(candidate_name,
 
         tops.append((bx+bar_w/2.0, by+bh))
 
+        # etiqueta bajo la barra
         c.setFont("Helvetica-Bold",7)
         c.setFillColor(colors.black)
-        c.drawCentredString(bx+bar_w/2.0, chart_y_bottom-14, label)
+        c.drawCentredString(bx+bar_w/2.0, chart_y_bottom-12, label)
 
-        # Puntaje bruto único
+        # puntaje bruto simple
+        if key == "G":
+            score_txt = f"{bruto:.1f}/14"
+        else:
+            score_txt = f"{int(bruto)}/14"
         c.setFont("Helvetica",6)
-        c.drawCentredString(
-            bx+bar_w/2.0,
-            chart_y_bottom-26,
-            f"{int(bruto)}/14"
-        )
+        c.drawCentredString(bx+bar_w/2.0, chart_y_bottom-24, score_txt)
 
-    # línea que une puntos
+    # línea poligonal
     c.setStrokeColor(colors.black)
-    c.setLineWidth(1.2)
+    c.setLineWidth(1)
     for j in range(len(tops)-1):
         (x1,y1)=tops[j]
         (x2,y2)=tops[j+1]
         c.line(x1,y1,x2,y2)
     for (px,py) in tops:
         c.setFillColor(colors.black)
-        c.circle(px,py,2.0,stroke=0,fill=1)
+        c.circle(px,py,2,stroke=0,fill=1)
 
-    c.setFont("Helvetica-Bold",8)
+    # título eje Y
+    c.setFont("Helvetica",7)
     c.setFillColor(colors.black)
-    c.drawString(chart_x, chart_y_bottom+chart_h+12,
-                 "Perfil cognitivo normalizado (0–10 visual)")
+    c.drawString(chart_x, chart_y_bottom+chart_h+12, "Nivel (porcentaje estimado)")
 
-    # ---------- BLOQUE DERECHA: DATOS + GUÍA ----------
-    box_x = chart_x + chart_w + 24
-    box_w = (W - margin_right) - box_x
+    # Eje X label
+    c.setFont("Helvetica",6)
+    c.drawString(chart_x, chart_y_bottom-36,
+                 "Dimensiones cognitivas: RL AT VD MT CI G")
 
-    # Datos candidato
-    box1_h = 72
-    box1_y_top = H-160
-    c.setStrokeColor(colors.lightgrey)
+    # -------------------------------------------------
+    # PANEL DATOS + BULLETS A LA DERECHA DEL GRÁFICO
+    # -------------------------------------------------
+    panel_x = chart_x + chart_w + 20
+    panel_y_top = H-150
+    panel_w = (W - margin_right) - panel_x
+    panel_h = 180  # caja alta
+
+    c.setStrokeColor(colors.black)
+    c.setLineWidth(0.5)
     c.setFillColor(colors.white)
-    c.rect(box_x, box1_y_top-box1_h, box_w, box1_h, stroke=1, fill=1)
+    c.rect(panel_x, panel_y_top-panel_h, panel_w, panel_h, stroke=1, fill=0)
 
-    yy = box1_y_top-14
+    yy = panel_y_top - 12
     c.setFont("Helvetica-Bold",8)
     c.setFillColor(colors.black)
-    c.drawString(box_x+8, yy, f"Nombre: {candidate_name}")
+    c.drawString(panel_x+8, yy, candidate_name.upper())
     yy -= 11
-    c.setFont("Helvetica",8)
-    c.drawString(box_x+8, yy, f"Cargo evaluado: {cargo_name}")
+    c.setFont("Helvetica",7)
+    c.drawString(panel_x+8, yy, f"Cargo evaluado: {cargo_name}")
     yy -= 11
-    c.drawString(box_x+8, yy, f"Fecha evaluación: {fecha_eval}")
+    c.drawString(panel_x+8, yy, f"Fecha de evaluación: {fecha_eval}")
     yy -= 11
-    c.drawString(box_x+8, yy, f"Evaluador: {evaluator_email.upper()}")
+    c.drawString(panel_x+8, yy, f"Evaluador: {evaluator_email.upper()}")
     yy -= 11
     c.setFont("Helvetica",6)
     c.setFillColor(colors.grey)
-    c.drawString(box_x+8, yy, "Documento interno. No clínico.")
+    c.drawString(panel_x+8, yy, "Uso interno RR.HH. / No clínico.")
+    yy -= 18
 
-    # Guía de lectura
-    box2_h = 80
-    box2_y_top = box1_y_top - box1_h - 12
-    c.setStrokeColor(colors.lightgrey)
-    c.setFillColor(colors.white)
-    c.rect(box_x, box2_y_top-box2_h, box_w, box2_h, stroke=1, fill=1)
-
-    gy = box2_y_top-14
-    c.setFont("Helvetica-Bold",8)
-    c.setFillColor(colors.black)
-    c.drawString(box_x+8, gy, "Guía de lectura de dimensiones")
-    gy -= 12
+    # bullets resumen (fortalezas + riesgos juntos como puntos)
     c.setFont("Helvetica",7)
-    guia_lines = [
-        "RL = Razonamiento Lógico / Secuencias",
-        "AT = Atención al Detalle / Precisión",
-        "VD = Velocidad de Decisión / Juicio rápido",
-        "MT = Memoria de Trabajo / Retención inmediata",
-        "CI = Comprensión de Instrucciones / Lectura Operativa",
-        "G  = Índice Cognitivo Global (promedio)",
-    ]
-    for gl in guia_lines:
-        c.drawString(box_x+8, gy, gl)
-        gy -= 10
-
-    # ---------- BLOQUE CENTRAL (ANCHO COMPLETO):
-    # RESUMEN COGNITIVO OBSERVADO
-    resumen_y_top = H-320
-    resumen_h = 120
-    resumen_x = margin_left
-    resumen_w = usable_w
-
-    c.setStrokeColor(colors.lightgrey)
-    c.setFillColor(colors.white)
-    c.rect(resumen_x, resumen_y_top-resumen_h, resumen_w, resumen_h, stroke=1, fill=1)
-
-    ry = resumen_y_top-14
-    c.setFont("Helvetica-Bold",8)
     c.setFillColor(colors.black)
-    c.drawString(resumen_x+8, ry, "Resumen cognitivo observado")
-    ry -= 14
 
-    # Fortalezas
-    c.setFont("Helvetica-Bold",7)
-    c.drawString(resumen_x+8, ry, "Fortalezas potenciales:")
-    ry -= 12
+    bullets = []
+    for f in fortalezas:
+        bullets.append(f)
+    for r in riesgos:
+        bullets.append(r)
 
-    c.setFont("Helvetica",7)
-    for f in strengths_list:
-        wrapped = _wrap(c, "• " + f, resumen_w-16, "Helvetica",7)
-        for line in wrapped:
-            c.drawString(resumen_x+12, ry, line)
-            ry -= 10
-            if ry < (resumen_y_top-resumen_h)+28:
-                break
-        if ry < (resumen_y_top-resumen_h)+28:
+    # mostramos hasta 6 viñetas
+    bullets = bullets[:6]
+
+    for btxt in bullets:
+        lines = _wrap(c, "• " + btxt, panel_w-16, "Helvetica",7)
+        for ln in lines:
+            c.drawString(panel_x+8, yy, ln)
+            yy -= 10
+        yy -= 2
+        if yy < (panel_y_top-panel_h)+20:
             break
 
-    ry -= 6
-    c.setFont("Helvetica-Bold",7)
-    c.drawString(resumen_x+8, ry, "Aspectos a monitorear / apoyo sugerido:")
-    ry -= 12
+    # -------------------------------------------------
+    # SLIDERS CONDUCTUALES (A LO LARGO DE LA HOJA)
+    # -------------------------------------------------
+    sliders_x = margin_left
+    sliders_y_top = H-330
+    sliders_w = W - margin_left - margin_right
 
-    c.setFont("Helvetica",7)
-    for m in monitor_list:
-        wrapped = _wrap(c, "• " + m, resumen_w-16, "Helvetica",7)
-        for line in wrapped:
-            c.drawString(resumen_x+12, ry, line)
-            ry -= 10
-            if ry < (resumen_y_top-resumen_h)+8:
-                break
-        if ry < (resumen_y_top-resumen_h)+8:
-            break
+    # cálculos para posicionar las pelotitas:
+    RL = raw_scores["RL"]
+    AT = raw_scores["AT"]
+    VD = raw_scores["VD"]
+    MT = raw_scores["MT"]
+    CI = raw_scores["CI"]
+    G  = raw_scores["G"]
 
-    # ---------- DETALLE POR DIMENSIÓN (ANCHO COMPLETO)
-    table_y_top = resumen_y_top - resumen_h - 16
-    table_h = 170
-    table_x = margin_left
-    table_w = usable_w
+    # 1. Detalle vs Pragmatismo: AT (detalle) vs VD (rapidez práctica)
+    pos_detalle = slider_pos_from_two(AT, VD)
 
-    c.setStrokeColor(colors.lightgrey)
-    c.setFillColor(colors.white)
-    c.rect(table_x, table_y_top-table_h, table_w, table_h, stroke=1, fill=1)
+    # 2. Calidad / precisión vs Velocidad / acción
+    #    Reusamos AT vs VD pero invertimos sentido
+    pos_calidad = slider_pos_from_two(AT, VD)  # mismo cálculo, distinto label
 
-    # Título tabla
+    # 3. Analítico vs Intuitivo → RL alto = analítico
+    pos_analitico = min(max(RL/14.0,0),1)
+
+    # 4. Autonomía vs Necesita apoyo → CI y MT altos = más autónomo
+    autonomy_raw = (CI + MT)/28.0  # 0..1 aprox
+    pos_autonomia = min(max(autonomy_raw,0),1)
+
+    # 5. Control / Organización vs Flexibilidad improvisada
+    #    usamos VD (acción rápida / flexible) vs MT (sostener orden)
+    pos_control = slider_pos_from_two(MT, VD)
+
+    # Dibujamos cada fila
     c.setFont("Helvetica-Bold",8)
     c.setFillColor(colors.black)
-    c.drawString(table_x+8, table_y_top-14, "Detalle por dimensión")
+    c.drawString(sliders_x, sliders_y_top, "Indicadores de estilo operativo observado")
+    cur_y = sliders_y_top - 14
 
-    header_y = table_y_top-32
-    c.setStrokeColor(colors.black)
-    c.line(table_x, header_y+6, table_x+table_w, header_y+6)
-
-    c.setFont("Helvetica-Bold",7)
-    c.drawString(table_x+8,   header_y, "Dimensión")
-    c.drawString(table_x+240, header_y, "Puntaje")
-    c.drawString(table_x+300, header_y, "Nivel")
-    c.drawString(table_x+350, header_y, "Descripción breve")
-
-    row_y = header_y-16
-    row_spacing = 34  # fila más alta para evitar texto encima
-
-    # valores para la tabla
-    avg_raw = raw_scores["G"]  # promedio bruto 0..14
-    dim_rows = [
-        ("RL", "Razonamiento Lógico / Secuencias", raw_scores["RL"]),
-        ("AT", "Atención al Detalle / Precisión",  raw_scores["AT"]),
-        ("VD", "Velocidad de Decisión / Juicio rápido", raw_scores["VD"]),
-        ("MT", "Memoria de Trabajo / Retención inmediata", raw_scores["MT"]),
-        ("CI", "Comprensión de Instrucciones / Lectura Operativa", raw_scores["CI"]),
-        ("G",  "Índice Cognitivo Global (G)", avg_raw),
-    ]
-
-    for key,label,val in dim_rows:
-        # columna texto dimensión
-        c.setFont("Helvetica-Bold",7)
-        c.setFillColor(colors.black)
-        c.drawString(table_x+8, row_y, label)
-
-        # puntaje: para G usamos /10 aprox, resto /14
-        c.setFont("Helvetica",7)
-        if key == "G":
-            puntaje_txt = f"{val:.1f}/10"
-            lvl_txt = level_from_raw(val)  # usa misma lógica
-        else:
-            puntaje_txt = f"{int(val)}/14"
-            lvl_txt = level_from_raw(val)
-
-        c.drawString(table_x+240, row_y, puntaje_txt)
-        c.drawString(table_x+300, row_y, lvl_txt)
-
-        # descripción breve envuelta
-        desc_txt = desc_by_dim.get(key, "")
-        row_y = _draw_par(
-            c,
-            desc_txt,
-            table_x+350,
-            row_y,
-            table_w-360,
-            font="Helvetica",
-            size=7,
-            leading=9,
-            color=colors.black,
-            max_lines=3
-        )
-
-        row_y -= (row_spacing-18)
-
-    # ---------- BLOQUE FINAL: DESEMPEÑO GLOBAL / AJUSTE / NOTA
-    bottom_block_h = 160
-    bottom_block_y_top = table_y_top - table_h - 20
-    bottom_block_x = margin_left
-    bottom_block_w = usable_w
-
-    c.setStrokeColor(colors.lightgrey)
-    c.setFillColor(colors.white)
-    c.rect(bottom_block_x,
-           bottom_block_y_top-bottom_block_h,
-           bottom_block_w,
-           bottom_block_h,
-           stroke=1, fill=1)
-
-    yb = bottom_block_y_top-14
-    c.setFont("Helvetica-Bold",8)
-    c.setFillColor(colors.black)
-    c.drawString(bottom_block_x+8, yb, "Desempeño cognitivo global")
-    yb -= 12
-    yb = _draw_par(
+    draw_slider(
         c,
-        global_desc,
-        bottom_block_x+8,
-        yb,
-        bottom_block_w-16,
+        x=sliders_x+5,
+        y=cur_y,
+        w=sliders_w-10,
+        left_label="Más detallista",
+        right_label="Más pragmático",
+        value_0_to_1=pos_detalle
+    )
+    cur_y -= 24
+
+    draw_slider(
+        c,
+        x=sliders_x+5,
+        y=cur_y,
+        w=sliders_w-10,
+        left_label="Enfoque en calidad / control",
+        right_label="Velocidad operativa",
+        value_0_to_1=pos_calidad
+    )
+    cur_y -= 24
+
+    draw_slider(
+        c,
+        x=sliders_x+5,
+        y=cur_y,
+        w=sliders_w-10,
+        left_label="Más analítico",
+        right_label="Más intuitivo",
+        value_0_to_1=pos_analitico
+    )
+    cur_y -= 24
+
+    draw_slider(
+        c,
+        x=sliders_x+5,
+        y=cur_y,
+        w=sliders_w-10,
+        left_label="Trabaja autónomo",
+        right_label="Requiere apoyo cercano",
+        value_0_to_1=pos_autonomia
+    )
+    cur_y -= 24
+
+    draw_slider(
+        c,
+        x=sliders_x+5,
+        y=cur_y,
+        w=sliders_w-10,
+        left_label="Más orden / método",
+        right_label="Más reacción inmediata",
+        value_0_to_1=pos_control
+    )
+    cur_y -= 36
+
+    # -------------------------------------------------
+    # PERFIL GENERAL (párrafo tipo DISC)
+    # -------------------------------------------------
+    c.setFont("Helvetica-Bold",8)
+    c.setFillColor(colors.black)
+    c.drawString(margin_left, cur_y, "Perfil general")
+    cur_y -= 12
+
+    # armamos un párrafo resumen tipo "Metódico, Analítico, Preciso..."
+    perfil_general_txt = (
+        f"{global_desc} {ajuste_text}"
+    )
+
+    cur_y = _draw_par(
+        c,
+        perfil_general_txt,
+        margin_left,
+        cur_y,
+        usable_w,
         font="Helvetica",
         size=7,
         leading=10,
         color=colors.black,
-        max_lines=4
+        max_lines=8
     )
 
-    yb -= 10
-    c.setFont("Helvetica-Bold",8)
-    c.drawString(bottom_block_x+8, yb, "Ajuste al cargo evaluado")
-    yb -= 12
-    yb = _draw_par(
-        c,
-        ajuste_text,
-        bottom_block_x+8,
-        yb,
-        bottom_block_w-16,
-        font="Helvetica",
-        size=7,
-        leading=10,
-        color=colors.black,
-        max_lines=4
+    cur_y -= 10
+    nota_txt = (
+        "Documento interno orientado a selección operativa. "
+        "Describe tendencias cognitivas útiles para rol productivo "
+        "y NO corresponde a diagnóstico clínico."
     )
-
-    yb -= 10
-    c.setFont("Helvetica-Bold",8)
-    c.drawString(bottom_block_x+8, yb, "Nota metodológica")
-    yb -= 12
-    _draw_par(
+    cur_y = _draw_par(
         c,
-        nota_text,
-        bottom_block_x+8,
-        yb,
-        bottom_block_w-16,
+        nota_txt,
+        margin_left,
+        cur_y,
+        usable_w,
         font="Helvetica",
         size=6,
         leading=9,
         color=colors.grey,
-        max_lines=10
+        max_lines=5
     )
 
-    # footer
+    # Footer pequeño al final
     c.setFont("Helvetica",6)
     c.setFillColor(colors.grey)
-    c.drawRightString(W-margin_right, 30,
-        "Uso interno RR.HH. · Evaluación Cognitiva Operativa · No clínico")
+    c.drawRightString(W-margin_right, 30, "Uso interno RR.HH. · Evaluación Cognitiva Operativa · No clínico")
 
     c.showPage()
     c.save()
@@ -876,7 +778,7 @@ def generate_pdf_iq(candidate_name,
 
 
 # -------------------------------------------------
-# ENVÍO CORREO
+# ENVÍO DE CORREO CON PDF
 # -------------------------------------------------
 def send_email_with_pdf(to_email, pdf_bytes, filename, subject, body_text):
     msg = EmailMessage()
@@ -896,25 +798,14 @@ def send_email_with_pdf(to_email, pdf_bytes, filename, subject, body_text):
 
 
 # -------------------------------------------------
-# GENERAR + ENVIAR INFORME
+# GENERAR + ENVIAR INFORME FINAL
 # -------------------------------------------------
 def finalize_and_send():
     raw_scores = compute_scores(st.session_state.answers)
 
-    # armar descripciones
-    desc_by_dim = build_dim_descriptions(raw_scores)
     fortalezas, riesgos = build_strengths_and_risks(raw_scores)
     global_desc = build_global_desc(raw_scores)
     ajuste_text = cargo_fit_text(st.session_state.selected_job, raw_scores)
-
-    nota_text = (
-        "Este informe se basa en la auto-respuesta declarada por la persona evaluada "
-        "en el test cognitivo adaptado para entornos operativos. Los resultados describen "
-        "tendencias funcionales observadas al momento de la evaluación y no constituyen "
-        "un diagnóstico clínico ni, por sí solos, una determinación absoluta de idoneidad. "
-        "Se recomienda complementar esta información con entrevista estructurada, "
-        "verificación de experiencia y evaluación técnica del cargo."
-    )
 
     now_txt = datetime.now().strftime("%d/%m/%Y %H:%M")
     cargo_name = JOB_PROFILES[st.session_state.selected_job]["title"]
@@ -925,12 +816,10 @@ def finalize_and_send():
         fecha_eval       = now_txt,
         evaluator_email  = st.session_state.evaluator_email,
         raw_scores       = raw_scores,
-        strengths_list   = fortalezas,
-        monitor_list     = riesgos,
-        desc_by_dim      = desc_by_dim,
+        fortalezas       = fortalezas,
+        riesgos          = riesgos,
         global_desc      = global_desc,
-        ajuste_text      = ajuste_text,
-        nota_text        = nota_text
+        ajuste_text      = ajuste_text
     )
 
     if not st.session_state.already_sent:
@@ -947,13 +836,12 @@ def finalize_and_send():
                 ),
             )
         except Exception:
-            # en producción podrías registrar/loggear el error
             pass
         st.session_state.already_sent = True
 
 
 # -------------------------------------------------
-# CALLBACK RESPUESTA (maneja SÍ y NO sin doble click)
+# CALLBACK PARA RESPUESTAS (sin doble click)
 # -------------------------------------------------
 def choose_answer(value_yes_or_no: int):
     q_idx = st.session_state.current_q
@@ -963,14 +851,13 @@ def choose_answer(value_yes_or_no: int):
         st.session_state.current_q += 1
         st.session_state._need_rerun = True
     else:
-        # terminó
         finalize_and_send()
         st.session_state.stage = "done"
         st.session_state._need_rerun = True
 
 
 # -------------------------------------------------
-# VISTAS UI STREAMLIT
+# VISTAS STREAMLIT
 # -------------------------------------------------
 def view_select_job():
     st.markdown("### Evaluación Cognitiva Operativa (IQ Adaptado)")
@@ -980,9 +867,7 @@ def view_select_job():
     keys_list = list(JOB_PROFILES.keys())
     for i, job_key in enumerate(keys_list):
         with cols[i % 2]:
-            if st.button(JOB_PROFILES[job_key]["title"],
-                         key=f"job_{job_key}",
-                         use_container_width=True):
+            if st.button(JOB_PROFILES[job_key]["title"], key=f"job_{job_key}", use_container_width=True):
                 st.session_state.selected_job = job_key
                 st.session_state.stage = "info"
                 st.session_state._need_rerun = True
@@ -1023,7 +908,7 @@ def view_test():
     q = QUESTIONS[q_idx]
     progreso = (q_idx + 1) / TOTAL_QUESTIONS
 
-    # Header visual
+    # Header de la pregunta
     st.markdown(
         f"""
         <div style="
@@ -1052,7 +937,7 @@ def view_test():
 
     st.progress(progreso)
 
-    # Tarjeta pregunta
+    # Tarjeta de la pregunta
     st.markdown(
         f"""
         <div style="
@@ -1093,6 +978,7 @@ def view_test():
             args=(0,)
         )
 
+    # Confidencialidad
     st.markdown(
         """
         <div style="
@@ -1172,11 +1058,10 @@ elif st.session_state.stage == "test":
     view_test()
 
 elif st.session_state.stage == "done":
-    # aseguro que si recarga la vista done, el PDF ya fue enviado
     finalize_and_send()
     view_done()
 
-# control de rerun suave
+# Rerun controlado para avanzar sin doble click
 if st.session_state._need_rerun:
     st.session_state._need_rerun = False
     st.rerun()
