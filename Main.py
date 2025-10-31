@@ -1,28 +1,26 @@
 # ============================================================
 # TEST DE CAPACIDAD COGNITIVA GENERAL (IQ SCREENING) - 70 ÍTEMS
-# Sin imágenes, dificultad creciente
-# 5 dimensiones cognitivas:
+# Versión con INFORME PDF ORDENADO (2 páginas, cajas limpias, sin texto encima)
+#
+# Flujo:
+# 1. Datos candidato (nombre + correo evaluador)
+# 2. Preguntas (1 por pantalla, auto-avance sin doble click)
+# 3. Pantalla final "Evaluación finalizada"
+# 4. Se genera PDF ordenado en 2 páginas y se envía al correo del evaluador
+#
+# Dimensiones cognitivas:
 #   NR = Razonamiento Numérico
 #   VR = Razonamiento Verbal / Semántico
 #   LR = Lógica / Deducción
-#   SP = Secuencias y Patrones
-#   MT = Memoria de Trabajo / Cálculo en cadena
+#   SP = Patrones / Secuencias
+#   MT = Memoria de Trabajo / Procesamiento Secuencial
 #
-# Flujo:
-#   1. Datos candidato (nombre + correo evaluador)
-#   2. Preguntas (1 por pantalla, auto-avance sin doble click)
-#   3. Pantalla final "Evaluación finalizada"
-#   4. Se genera PDF de 2 páginas con resumen ordenado
-#   5. El PDF se envía automáticamente al correo del evaluador
-#
-# Librerías necesarias (instalar antes):
+# Librerías necesarias:
 #   pip install streamlit reportlab
 #
-# MUY IMPORTANTE:
-# - Este test NO está ligado a un cargo específico. Evalúa capacidad cognitiva general.
-# - El informe clasifica el desempeño como Bajo / Promedio / Alto / Muy Alto
-#   en cada dimensión y en promedio general.
-#
+# IMPORTANTE:
+# - No depende de imágenes
+# - Es para screening cognitivo general (no amarra a un cargo específico)
 # ============================================================
 
 import streamlit as st
@@ -35,6 +33,7 @@ from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 from reportlab.lib import colors
 
+
 # ------------------------------------------------------------
 # CONFIG STREAMLIT
 # ------------------------------------------------------------
@@ -46,30 +45,26 @@ st.set_page_config(
 )
 
 # ------------------------------------------------------------
-# CREDENCIALES CORREO (se usa para enviar PDF al evaluador)
+# CREDENCIALES CORREO (para enviar PDF al evaluador)
 # ------------------------------------------------------------
 FROM_ADDR = "jo.tajtaj@gmail.com"
 APP_PASS  = "nlkt kujl ebdg cyts"
 
+
 # ------------------------------------------------------------
-# BANCO DE 70 PREGUNTAS
-# Formato:
-#   "text": enunciado
-#   "options": lista de 4 alternativas (str)
-#   "correct": índice (0..3) de la alternativa correcta
-#   "dim": "NR" | "VR" | "LR" | "SP" | "MT"
+# PREGUNTAS (70 ítems, dificultad creciente)
+# Cada pregunta:
+#  - text: enunciado
+#  - options: 4 alternativas
+#  - correct: índice de la correcta (0..3)
+#  - dim: dimensión ("NR","VR","LR","SP","MT")
 #
-# Dificultad: empieza más fácil y se va complejizando.
-# Importante: nada depende de imágenes ni de ver un listado para "memorizar".
-# En MT usamos operaciones encadenadas (memoria de trabajo).
+# Nota: ya están razonables en dificultad y sin depender de imágenes.
 # ------------------------------------------------------------
 
 QUESTIONS = [
 
-    # ----------------------------
-    # NR (Razonamiento Numérico) - 16 ítems
-    # ----------------------------
-
+    # NR — Razonamiento Numérico (16 ítems)
     {
         "text": "¿Cuál es el resultado de 7 + 5?",
         "options": ["10", "11", "12", "13"],
@@ -77,12 +72,9 @@ QUESTIONS = [
         "dim": "NR"
     },
     {
-        "text": "Si tienes 18 manzanas y regalas 7, ¿cuántas quedan?",
+        "text": "Si tienes 18 y regalas 7, ¿cuántos quedan?",
         "options": ["9", "10", "11", "12"],
-        "correct": 3,  # 18-7=11? cuidado:
-        # vamos a corregir:
-        # 18 - 7 = 11. Ajustemos correct=2
-        "correct": 2,
+        "correct": 2,  # 11
         "dim": "NR"
     },
     {
@@ -105,88 +97,72 @@ QUESTIONS = [
     },
     {
         "text": "Una máquina produce 24 piezas por hora. ¿Cuántas piezas en 5 horas?",
-        "options": ["100", "110", "112", "120"],
-        "correct": 0,  # 24*5=120 -> opción index 3, cuidado:
-        # corrijamos opciones:
         "options": ["120", "110", "112", "100"],
-        # 24*5=120 => index 0
-        "correct": 0,
+        "correct": 0,  # 24*5=120
         "dim": "NR"
     },
     {
         "text": "Si aumentas 25 en un 20%, obtienes:",
         "options": ["27", "28", "30", "35"],
-        "correct": 2,  # 25 *1.2 =30
+        "correct": 2,  # 30
         "dim": "NR"
     },
     {
         "text": "Resuelve: 15 + 27 - 8 =",
         "options": ["32", "33", "34", "35"],
-        "correct": 1,  # 15+27=42; 42-8=34 -> index 2
-        # corregimos:
-        "correct": 2,
+        "correct": 2,  # 34
         "dim": "NR"
     },
     {
-        "text": "Si 5 trabajadores hacen 40 unidades en total, en promedio cada trabajador hizo:",
+        "text": "Si 5 trabajadores hacen 40 unidades en total, en promedio cada uno hizo:",
         "options": ["6", "7", "8", "9"],
-        "correct": 2,  # 40/5=8
+        "correct": 2,  # 8
         "dim": "NR"
     },
     {
-        "text": "Si un artículo cuesta 80 y baja 15%, su nuevo precio es:",
+        "text": "Un artículo cuesta 80 y baja 15%. Nuevo precio:",
         "options": ["68", "70", "72", "74"],
-        "correct": 2,  # 80 *0.85=68 -> index 0, corrijamos opciones
-        "options": ["68", "70", "72", "74"],
-        "correct": 0,
+        "correct": 0,  # 68
         "dim": "NR"
     },
     {
         "text": "Completa: 4, 7, 10, 13, __",
         "options": ["14", "15", "16", "17"],
-        "correct": 2,  # +3
+        "correct": 2,  # 16 (+3)
         "dim": "NR"
     },
     {
         "text": "Si x = 12 y y = 5, calcula x - 2y:",
         "options": ["1", "2", "3", "4"],
-        # 12 - 10 =2 => index 1
-        "correct": 1,
+        "correct": 1,  # 12 - 10 = 2
         "dim": "NR"
     },
     {
-        "text": "Resuelve: 3/4 de 32 =",
+        "text": "3/4 de 32 =",
         "options": ["20", "22", "24", "28"],
-        "correct": 2,  # 0.75 *32=24
+        "correct": 2,  # 24
         "dim": "NR"
     },
     {
-        "text": "Una persona camina 1,2 km cada 10 min. ¿Cuántos km recorre en 30 min?",
+        "text": "Caminas 1,2 km cada 10 minutos. ¿Cuántos km en 30 minutos?",
         "options": ["2,4", "3,6", "4,2", "5,0"],
-        # 1.2 km/10min -> en 30min: 1.2*3=3.6 -> index1
-        "correct": 1,
+        "correct": 1,  # 3.6
         "dim": "NR"
     },
     {
         "text": "Si 2a + 3 = 17, entonces a =",
         "options": ["6", "7", "8", "9"],
-        # 2a=14 => a=7 => index1
-        "correct": 1,
+        "correct": 1,  # 7
         "dim": "NR"
     },
     {
-        "text": "Un número es multiplicado por 6 y luego se le resta 9. El resultado es 33. ¿Cuál era el número inicial?",
+        "text": "Un número se multiplica por 6 y luego se le resta 9. El resultado es 33. ¿Cuál era el número?",
         "options": ["5", "6", "7", "8"],
-        # 6n -9 =33 =>6n=42 =>n=7 => index2
-        "correct": 2,
+        "correct": 2,  # 7
         "dim": "NR"
     },
 
-    # ----------------------------
-    # VR (Razonamiento Verbal / Semántico) - 14 ítems
-    # Analogías, relaciones palabra-concepto, vocabulario funcional.
-    # ----------------------------
-
+    # VR — Razonamiento Verbal / Semántico (14 ítems)
     {
         "text": "Reloj es a tiempo como termómetro es a:",
         "options": ["altura", "temperatura", "distancia", "peso"],
@@ -206,13 +182,13 @@ QUESTIONS = [
         "dim": "VR"
     },
     {
-        "text": "Completa la relación: Fuerte es a débil como rápido es a:",
+        "text": "Fuerte es a débil como rápido es a:",
         "options": ["lento", "duro", "tímido", "alto"],
         "correct": 0,
         "dim": "VR"
     },
     {
-        "text": "¿Cuál de estas palabras tiene significado más parecido a 'evaluar'?",
+        "text": "¿Cuál palabra se parece más a 'evaluar'?",
         "options": ["descansar", "medir", "olvidar", "anotar"],
         "correct": 1,
         "dim": "VR"
@@ -235,7 +211,7 @@ QUESTIONS = [
         "dim": "VR"
     },
     {
-        "text": "¿Cuál palabra completa mejor la oración?: 'Para tomar una buena decisión, debemos tener toda la ___ disponible.'",
+        "text": "Completa: 'Para tomar una buena decisión, debemos tener toda la ___ disponible.'",
         "options": ["canción", "información", "decoración", "operación"],
         "correct": 1,
         "dim": "VR"
@@ -253,13 +229,13 @@ QUESTIONS = [
         "dim": "VR"
     },
     {
-        "text": "Selecciona la opción que mejor completa la analogía: 'Manual' es a 'procedimiento' como 'mapa' es a:",
+        "text": "'Manual' es a 'procedimiento' como 'mapa' es a:",
         "options": ["camino", "viaje", "ruta", "distancia"],
-        "correct": 2,  # mapa describe ruta
+        "correct": 2,
         "dim": "VR"
     },
     {
-        "text": "¿Cuál de estas palabras describe mejor 'priorizar'?",
+        "text": "¿Qué describe mejor 'priorizar'?",
         "options": [
             "olvidar tareas menores",
             "poner primero lo más importante",
@@ -270,7 +246,7 @@ QUESTIONS = [
         "dim": "VR"
     },
     {
-        "text": "Elige la opción que hace la frase más lógica: 'Si un proceso es eficiente, entonces…'",
+        "text": "‘Si un proceso es eficiente, entonces…’",
         "options": [
             "usa pocos recursos para lograr el resultado",
             "usa todos los recursos disponibles",
@@ -292,11 +268,7 @@ QUESTIONS = [
         "dim": "VR"
     },
 
-    # ----------------------------
-    # LR (Lógica / Deducción) - 15 ítems
-    # Inferencias, verdadero/falso lógico, consistencia.
-    # ----------------------------
-
+    # LR — Lógica / Deducción (15 ítems)
     {
         "text": "Si todos los técnicos usan guantes. Pedro es técnico. Entonces:",
         "options": [
@@ -309,7 +281,7 @@ QUESTIONS = [
         "dim": "LR"
     },
     {
-        "text": "Todas las piezas tipo X pesan más de 10 kg. Esta pieza pesa 8 kg. Entonces:",
+        "text": "Todas las piezas tipo X pesan más de 10 kg. Esta pesa 8 kg. Entonces:",
         "options": [
             "Es tipo X",
             "No puede ser tipo X",
@@ -375,21 +347,19 @@ QUESTIONS = [
         "dim": "LR"
     },
     {
-        "text": "Tres afirmaciones:\n1) Ana es mayor que Luis.\n2) Luis es mayor que Carla.\n3) Carla es mayor que Ana.\n¿Estas afirmaciones pueden ser todas verdaderas al mismo tiempo?",
+        "text": "Tres afirmaciones:\n1) Ana es mayor que Luis.\n2) Luis es mayor que Carla.\n3) Carla es mayor que Ana.\n¿Pueden ser todas verdaderas a la vez?",
         "options": ["Sí", "No", "Solo si son trillizos", "Solo si es lunes"],
-        "correct": 1,  # contradicción cíclica
+        "correct": 1,
         "dim": "LR"
     },
     {
-        "text": "Si exactamente una de estas frases es verdadera:\nA) 'Yo siempre digo la verdad.'\nB) 'Yo siempre miento.'\n¿Cuál opción es lógica?",
+        "text": "Si exactamente una de estas frases es verdadera:\nA) 'Yo siempre digo la verdad.'\nB) 'Yo siempre miento.'\nEntonces:",
         "options": [
             "Ambas pueden ser verdaderas",
             "Ambas pueden ser falsas",
             "Solo A es verdadera",
             "Solo B es verdadera"
         ],
-        # Clásico: no pueden ambas ser verdaderas. Si A es verdadera entonces B es falsa => A verdadera, B falsa satisface 'exactamente una verdadera'.
-        # Si B es verdadera => 'yo siempre miento' -> contradicción. Así que 'Solo A es verdadera'.
         "correct": 2,
         "dim": "LR"
     },
@@ -416,13 +386,13 @@ QUESTIONS = [
         "dim": "LR"
     },
     {
-        "text": "Un equipo tiene las personas A, B, C. Sabemos: A trabaja con B. B trabaja con C. ¿Podemos concluir con certeza que A trabaja con C?",
+        "text": "Un equipo tiene A, B, C. Sabemos: A trabaja con B. B trabaja con C. ¿Podemos concluir con certeza que A trabaja con C?",
         "options": ["Sí", "No", "Solo los lunes", "A es jefe de C"],
         "correct": 1,
         "dim": "LR"
     },
     {
-        "text": "Si nadie menor de 18 puede operar una máquina y Paula opera esa máquina, entonces:",
+        "text": "Nadie menor de 18 opera la máquina. Paula opera la máquina. Entonces:",
         "options": [
             "Paula tiene al menos 18",
             "Paula tiene menos de 18",
@@ -440,221 +410,176 @@ QUESTIONS = [
             "No sabemos si es urgente",
             "Debe ser destruido"
         ],
-        # si TODOS los urgentes son rojos, pero este no es rojo => seguro no urgente
         "correct": 1,
         "dim": "LR"
     },
     {
-        "text": "Regla: 'Si el contenedor está lleno, se sella'. El contenedor NO está sellado. ¿Qué es lógicamente válido?",
+        "text": "Regla: 'Si el contenedor está lleno, se sella'. El contenedor NO está sellado. ¿Qué es válido?",
         "options": [
-            "El contenedor está lleno, pero no lo sellaron",
+            "El contenedor está lleno pero no lo sellaron",
             "El contenedor no está lleno",
             "El contenedor está vacío absolutamente",
             "El contenedor explotó"
         ],
-        # 'Si lleno -> sellado'. Negación del consecuente NO permite inferir que no está lleno con certeza?
-        # Lógica: (Lleno -> Sellado). Observamos ¬Sellado.
-        # Entonces podemos inferir ¬Lleno (contrapositiva). Eso sí es válido.
         "correct": 1,
         "dim": "LR"
     },
 
-    # ----------------------------
-    # SP (Secuencias / Patrones / Series) - 15 ítems
-    # Numéricas, alfabéticas, reglas de cambio.
-    # ----------------------------
-
+    # SP — Patrones / Secuencias (15 ítems)
     {
         "text": "Completa la serie: 2, 4, 6, 8, __",
         "options": ["9", "10", "11", "12"],
-        "correct": 1,  # +2
+        "correct": 1,
         "dim": "SP"
     },
     {
         "text": "Completa la serie: 5, 10, 20, 40, __",
         "options": ["45", "60", "70", "80"],
-        "correct": 3,  # x2
+        "correct": 3,
         "dim": "SP"
     },
     {
         "text": "Completa la serie: 9, 7, 5, 3, __",
         "options": ["1", "2", "0", "-1"],
-        "correct": 0,  # -2
+        "correct": 0,
         "dim": "SP"
     },
     {
         "text": "Completa la serie: 1, 1, 2, 3, 5, __",
         "options": ["6", "7", "8", "9"],
-        "correct": 2,  # Fibonacci -> 8
+        "correct": 2,
         "dim": "SP"
     },
     {
-        "text": "Completa la serie de letras: A, C, E, G, __",
+        "text": "Serie de letras: A, C, E, G, __",
         "options": ["H", "I", "J", "K"],
-        # Saltando 1 letra: A(+2)C(+2)E(+2)G -> siguiente I -> index1
-        "correct": 1,
+        "correct": 1,  # I
         "dim": "SP"
     },
     {
         "text": "Completa la serie: 12, 11, 9, 6, __",
         "options": ["2", "3", "4", "5"],
-        # dif: -1, -2, -3 ... => siguiente -4 => 6-4=2 => index0
-        "correct": 0,
+        "correct": 0,  # 2
         "dim": "SP"
     },
     {
         "text": "Completa: 3, 6, 9, 15, 24, __",
         "options": ["33", "36", "38", "39"],
-        # diffs: +3,+3,+6,+9 → next diff +12 => 24+12=36 -> index1
-        "correct": 1,
+        "correct": 1,  # 36
         "dim": "SP"
     },
     {
         "text": "Completa: B, D, G, K, __",
         "options": ["P", "O", "N", "Q"],
-        # saltos: B(+2)D(+3)G(+4)K(+5) -> +6 => Q -> index3
-        "correct": 3,
+        "correct": 3,  # Q
         "dim": "SP"
     },
     {
         "text": "Completa: 2, 4, 12, 48, __",
-        "options": ["60", "96", "144", "192"],
-        # x2,x3,x4,... next x5 =>48*5=240 no está. Ajustemos la regla:
-        # usemos x2,x3,x4 then x5=240 -> vamos a cambiar opciones:
         "options": ["120", "192", "200", "240"],
-        # correcto=240 -> index3
-        "correct": 3,
+        "correct": 3,  # 240
         "dim": "SP"
     },
     {
         "text": "Completa: 100, 90, 81, 73, __",
         "options": ["65", "66", "67", "68"],
-        # diffs: -10,-9,-8,-7 => next -6 => 73-6=67 -> index2
-        "correct": 2,
+        "correct": 2,  # 67
         "dim": "SP"
     },
     {
         "text": "Completa: 4, 9, 16, 25, __",
         "options": ["30", "32", "35", "36"],
-        # cuadrados: 2²,3²,4²,5²,6²=36 -> index3
-        "correct": 3,
+        "correct": 3,  # 36
         "dim": "SP"
     },
     {
         "text": "Completa: 7, 14, 28, 56, __",
         "options": ["70", "84", "96", "112"],
-        # x2 cada vez => 112 -> index3
-        "correct": 3,
+        "correct": 3,  # 112
         "dim": "SP"
     },
     {
         "text": "Completa: 2, 5, 11, 23, __",
         "options": ["35", "36", "39", "47"],
-        # patrón +3,+6,+12,+24 => next +48 => 23+48=71 no está.
-        # Cambiemos serie a algo más simple: 2,5,11,23,...
-        # Eso es *2+1 cada vez: 2→5(2*2+1),5→11(5*2+1),11→23(11*2+1)=23 -> next 23*2+1=47 -> index3
-        "correct": 3,
+        "correct": 3,  # 47
         "dim": "SP"
     },
     {
         "text": "Completa: 1, 4, 9, 16, 25, __",
         "options": ["30", "32", "36", "40"],
-        # cuadrados: 1²,2²,... =>6²=36 -> index2
-        "correct": 2,
+        "correct": 2,  # 36
         "dim": "SP"
     },
     {
         "text": "Completa: 10, 9, 7, 4, 0, __",
         "options": ["-5", "-4", "-3", "-2"],
-        # diffs: -1,-2,-3,-4 => next -5 => 0-5=-5 -> index0
-        "correct": 0,
+        "correct": 0,  # -5
         "dim": "SP"
     },
 
-    # ----------------------------
-    # MT (Memoria de Trabajo / Razonamiento Secuencial en cadena)
-    # 10 ítems complejos, dificultad alta
-    # Estas reemplazan las viejas tipo “qué paso va segundo”.
-    # ----------------------------
-
+    # MT — Memoria de Trabajo / Procesamiento Secuencial (10 ítems)
     {
-        "text": "Tienes los números 18, 6 y 4. Primero divide el primero por el segundo. Luego multiplica ese resultado por el tercero. Finalmente réstale 2. ¿Cuál es el número final?",
+        "text": "Tienes 18, 6 y 4. 1) Divide 18 por 6. 2) Multiplica ese resultado por 4. 3) Resta 2. ¿Resultado final?",
         "options": ["8", "10", "12", "16"],
-        # 18/6=3; 3*4=12; 12-2=10 -> index1
-        "correct": 1,
+        "correct": 1,  # 10
         "dim": "MT"
     },
     {
-        "text": "Piensa en las letras T, L, R, A. 1) Ordénalas alfabéticamente ascendente. 2) Toma la segunda y la cuarta de esa lista y únelas en ese orden para formar una clave. ¿Cuál es la clave?",
+        "text": "Letras: T, L, R, A. 1) Ordénalas alfabéticamente. 2) Toma la segunda y la cuarta y únelas. ¿Clave final?",
         "options": ["AL", "LT", "RA", "TA"],
-        # Orden alfa: A,L,R,T -> segunda=L cuarta=T -> 'LT' -> index1
-        "correct": 1,
+        "correct": 1,  # LT
         "dim": "MT"
     },
     {
-        "text": "Secuencia mental: 7, 14, 5. Haz esto: (1) Suma los dos primeros números. (2) Divide ese resultado por el tercero. (3) Súmale 3 al resultado final. ¿Cuál obtienes (aprox entero más cercano)?",
+        "text": "Secuencia mental: 7, 14, 5. 1) Suma los dos primeros. 2) Divide por el tercero. 3) Súmale 3. ¿Entero más cercano?",
         "options": ["4", "5", "6", "7"],
-        # (7+14)=21; 21/5=4.2; +3=7.2 ~7 -> index3
-        "correct": 3,
+        "correct": 3,  # 7.2 ~7
         "dim": "MT"
     },
     {
-        "text": "Imagina cuatro pasos en este orden: [Encender], [Configurar], [Probar], [Registrar]. Ahora: elimina el segundo paso y luego invierte el orden de los pasos restantes. ¿Qué paso queda PRIMERO después de hacer todo eso?",
+        "text": "Pasos: [Encender], [Configurar], [Probar], [Registrar]. Elimina el segundo paso y luego invierte el orden. ¿Qué paso queda PRIMERO al final?",
         "options": ["Encender", "Configurar", "Probar", "Registrar"],
-        # Original: Encender, Configurar, Probar, Registrar
-        # Eliminas Configurar -> Encender, Probar, Registrar
-        # Inviertes -> Registrar, Probar, Encender
-        # Primero final = Registrar -> index3
-        "correct": 3,
+        "correct": 3,  # Registrar
         "dim": "MT"
     },
     {
-        "text": "Piensa en 4, 10, 2, 8. Toma el MAYOR y réstale el MENOR. Luego suma el promedio de los dos números restantes. ¿Resultado final?",
+        "text": "Números: 4, 10, 2, 8. 1) Mayor - Menor. 2) + promedio de los otros dos. ¿Resultado final?",
         "options": ["12", "13", "14", "15"],
-        # Mayor=10, Menor=2 -> 8
-        # Restantes=4 y 8 -> prom=6
-        # 8+6=14 -> index2
-        "correct": 2,
+        "correct": 2,  # 14
         "dim": "MT"
     },
     {
-        "text": "Memoriza mentalmente estos cuatro dígitos: 5, 1, 9, 1. 1) Elimina las repeticiones, quedándote con los dígitos únicos en el orden en que aparecieron. 2) Suma esos dígitos únicos. ¿Cuál es el resultado?",
+        "text": "Dígitos: 5, 1, 9, 1. 1) Quita repeticiones (mantén orden de primera aparición). 2) Suma los dígitos únicos. Resultado:",
         "options": ["12", "14", "15", "16"],
-        # Únicos: 5,1,9 => suma=15 -> index2
-        "correct": 2,
+        "correct": 2,  # 5+1+9=15
         "dim": "MT"
     },
     {
-        "text": "Tienes las letras C, H, A, R, T. 1) Elimina la vocal que aparece PRIMERO en la secuencia. 2) Con las letras restantes, ordénalas alfabéticamente. ¿Cuál letra queda al FINAL de ese nuevo orden?",
+        "text": "Letras: C, H, A, R, T. 1) Quita la primera vocal que aparezca. 2) Ordena alfabéticamente el resto. ¿Última letra en ese nuevo orden?",
         "options": ["C", "H", "R", "T"],
-        # Secuencia original C,H,A,R,T
-        # Vocal primero = A -> quitar A
-        # Queda C,H,R,T -> orden alfa C,H,R,T -> final T -> index3
-        "correct": 3,
+        "correct": 3,  # T
         "dim": "MT"
     },
     {
-        "text": "Piensa en los números 16, 4, 3. Haz esto: (1) Divide el primero por el segundo. (2) Multiplica el resultado por el tercero. (3) Súmale 5. ¿Cuál es el número final?",
+        "text": "Números: 16, 4, 3. 1) 16 / 4. 2) Multiplica por 3. 3) Súmale 5. Resultado final:",
         "options": ["13", "14", "15", "17"],
-        # 16/4=4; 4*3=12; 12+5=17 -> index3
-        "correct": 3,
+        "correct": 3,  # 17
         "dim": "MT"
     },
     {
-        "text": "Tienes la secuencia: [Rojo, Azul, Verde, Amarillo]. Haz esto: 1) Mueve el último color al principio. 2) Luego elimina el color que ahora esté en tercera posición. ¿Qué color queda en SEGUNDA posición al final?",
+        "text": "Colores: [Rojo, Azul, Verde, Amarillo]. 1) Mueve el último al inicio. 2) Elimina el que queda en la 3ra posición. ¿Qué color queda en la 2da posición al final?",
         "options": ["Rojo", "Azul", "Verde", "Amarillo"],
-        # Mover último al principio: [Amarillo, Rojo, Azul, Verde]
-        # Eliminar el que está en 3ra posición ahora -> Azul
+        # Reorden: [Amarillo, Rojo, Azul, Verde]
+        # Eliminar 3ra pos (Azul):
         # Queda [Amarillo, Rojo, Verde]
-        # Segunda posición final = Rojo -> index0? cuidado: opciones ["Rojo","Azul","Verde","Amarillo"]
-        # Segunda pos final = Rojo => index0
+        # 2da posición final = Rojo -> index0
         "correct": 0,
         "dim": "MT"
     },
     {
-        "text": "Toma 3, 9 y 2. 1) Suma el primero y el segundo. 2) Resta el tercero. 3) Multiplica por 2. ¿Resultado final?",
+        "text": "Usa 3, 9 y 2. 1) Suma el primero y segundo. 2) Resta el tercero. 3) Multiplica por 2. Resultado:",
         "options": ["18", "20", "24", "26"],
-        # (3+9)=12; 12-2=10; 10*2=20 -> index1
+        # (3+9)=12; -2=10; *2=20
         "correct": 1,
         "dim": "MT"
     },
@@ -662,8 +587,9 @@ QUESTIONS = [
 
 TOTAL_QUESTIONS = len(QUESTIONS)  # 70
 
+
 # ------------------------------------------------------------
-# ESTADO GLOBAL STREAMLIT
+# ESTADO STREAMLIT
 # ------------------------------------------------------------
 if "stage" not in st.session_state:
     st.session_state.stage = "info"  # info -> test -> done
@@ -686,20 +612,19 @@ if "_need_rerun" not in st.session_state:
 if "already_sent" not in st.session_state:
     st.session_state.already_sent = False
 
-# ------------------------------------------------------------
-# SCORING Y CLASIFICACIÓN
-# ------------------------------------------------------------
 
+# ------------------------------------------------------------
+# SCORING / TEXTO DESCRIPTIVO
+# ------------------------------------------------------------
 DIM_LABELS = {
     "NR": "Razonamiento Numérico",
     "VR": "Razonamiento Verbal / Comprensión Semántica",
     "LR": "Lógica / Deducción",
     "SP": "Patrones y Secuencias",
-    "MT": "Memoria de Trabajo (Procesamiento en Cadena)",
+    "MT": "Memoria de Trabajo / Procesamiento Secuencial",
 }
 
 def compute_scores(ans_dict):
-    # contamos aciertos por dimensión
     dim_correct = {"NR":0,"VR":0,"LR":0,"SP":0,"MT":0}
     dim_total   = {"NR":0,"VR":0,"LR":0,"SP":0,"MT":0}
 
@@ -710,7 +635,6 @@ def compute_scores(ans_dict):
         if given is not None and given == q["correct"]:
             dim_correct[dim] += 1
 
-    # porcentaje correcto por dimensión (0-100)
     dim_pct = {}
     for d in dim_total:
         if dim_total[d] > 0:
@@ -718,14 +642,11 @@ def compute_scores(ans_dict):
         else:
             dim_pct[d] = 0.0
 
-    # promedio general (0-100)
     overall = sum(dim_pct.values()) / len(dim_pct)
 
     return dim_pct, overall, dim_correct, dim_total
 
 def level_from_pct(p):
-    # clasificación cualitativa según % aciertos
-    # p: 0-100
     if p >= 85:
         return "Muy Alto"
     elif p >= 60:
@@ -741,103 +662,110 @@ def summary_overall_text(overall_pct):
     lvl = level_from_pct(overall_pct)
     if lvl in ["Muy Alto","Alto"]:
         return (
-            f"Desempeño global {lvl.lower()}. "
-            "El evaluado resuelve con solidez operaciones mentales, comparaciones lógicas "
-            "y manejo de instrucciones encadenadas. Indica buena capacidad de razonamiento "
-            "bajo demanda cognitiva."
+            f"Desempeño global {lvl.lower()}. El evaluado resuelve con solidez "
+            "operaciones mentales, comparaciones lógicas y manejo de pasos encadenados. "
+            "Indica buena capacidad de razonamiento bajo demanda cognitiva."
         )
     elif lvl == "Promedio":
         return (
             "Desempeño global en rango promedio. Maneja comparaciones lógicas básicas, "
             "cálculo funcional y reconocimiento de patrones. Puede requerir más tiempo "
-            "ante consignas muy complejas o con muchos pasos encadenados."
+            "ante consignas complejas con múltiples pasos."
         )
     else:
         return (
-            "Desempeño global en rango bajo. El evaluado muestra dificultades para sostener "
-            "operaciones mentales de varios pasos y para mantener precisión en cálculos "
-            "o inferencias más abstractas. Podría requerir instrucciones más segmentadas "
-            "y apoyo adicional en tareas de alta complejidad cognitiva."
+            "Desempeño global en rango bajo. Dificultad para sostener operaciones "
+            "mentales de varios pasos y mantener precisión en cálculos o inferencias "
+            "abstractas. Podría requerir instrucciones más segmentadas y apoyo adicional "
+            "en tareas de alta complejidad cognitiva."
         )
 
 def dimension_description(dim_key, pct):
-    # descripción breve por dimensión para la tabla
     lvl = level_from_pct(pct)
     if dim_key == "NR":
         if pct >= 60:
             return f"Buen manejo de números y proporciones (nivel {lvl.lower()})."
         elif pct >= 40:
-            return "Puede operar con cantidades y porcentajes básicos con cierta consistencia."
+            return "Opera con cantidades y porcentajes básicos con cierta consistencia."
         else:
-            return "Puede requerir apoyo en cálculos encadenados o porcentajes."
+            return "Puede requerir apoyo en cálculos sucesivos o porcentajes."
     if dim_key == "VR":
         if pct >= 60:
-            return f"Comprensión verbal sólida y buen uso de relaciones semánticas (nivel {lvl.lower()})."
+            return f"Comprensión verbal sólida y uso claro de relaciones semánticas (nivel {lvl.lower()})."
         elif pct >= 40:
             return "Interpreta instrucciones comunes y relaciones de significado directo."
         else:
-            return "Podría necesitar más reformulación verbal o ejemplos concretos."
+            return "Podría necesitar instrucciones más claras o ejemplos concretos."
     if dim_key == "LR":
         if pct >= 60:
             return f"Capacidad lógica para extraer conclusiones coherentes (nivel {lvl.lower()})."
         elif pct >= 40:
             return "Puede seguir reglas simples y detectar contradicciones básicas."
         else:
-            return "Le cuesta sostener reglas lógicas si hay varias condiciones simultáneas."
+            return "Le cuesta sostener reglas lógicas cuando hay condiciones múltiples."
     if dim_key == "SP":
         if pct >= 60:
-            return f"Detección de patrones y progresiones numéricas consistente (nivel {lvl.lower()})."
+            return f"Reconoce patrones y progresiones numéricas (nivel {lvl.lower()})."
         elif pct >= 40:
-            return "Reconoce secuencias simples y cambios regulares."
+            return "Identifica secuencias simples y cambios regulares."
         else:
             return "Menor precisión al proyectar la siguiente etapa de la serie."
     if dim_key == "MT":
         if pct >= 60:
-            return f"Mantiene varios pasos mentales y orden secuencial complejo (nivel {lvl.lower()})."
+            return f"Mantiene varios pasos mentales en orden (nivel {lvl.lower()})."
         elif pct >= 40:
             return "Puede sostener 2-3 transformaciones consecutivas antes de responder."
         else:
-            return "Pierde información intermedia cuando la instrucción tiene muchos pasos."
+            return "Pierde información intermedia cuando hay muchos pasos encadenados."
     return "—"
 
 def build_strengths_and_needs(dim_pct):
     fortalezas = []
     alertas = []
 
-    # NR
     if dim_pct["NR"] >= 60:
         fortalezas.append("Opera con números y proporciones de forma eficiente.")
     elif dim_pct["NR"] < 40:
-        alertas.append("Puede requerir apoyo adicional para cálculos sucesivos o porcentajes.")
+        alertas.append("Podría requerir apoyo para cálculos sucesivos o porcentajes.")
 
-    # VR
     if dim_pct["VR"] >= 60:
         fortalezas.append("Buena comprensión verbal e interpretación de instrucciones escritas.")
     elif dim_pct["VR"] < 40:
-        alertas.append("Podría necesitar instrucciones más claras o repetidas en lenguaje sencillo.")
+        alertas.append("Podría requerir instrucciones más claras y reformuladas verbalmente.")
 
-    # LR
     if dim_pct["LR"] >= 60:
         fortalezas.append("Extrae conclusiones lógicas y detecta contradicciones en enunciados.")
     elif dim_pct["LR"] < 40:
         alertas.append("Puede confundirse si las condiciones lógicas son múltiples o abstractas.")
 
-    # SP
     if dim_pct["SP"] >= 60:
-        fortalezas.append("Reconoce patrones y secuencias, puede anticipar resultados futuros.")
+        fortalezas.append("Reconoce patrones y secuencias, anticipando resultados futuros.")
     elif dim_pct["SP"] < 40:
-        alertas.append("Puede tener dificultad para proyectar series numéricas o de letras con reglas cambiantes.")
+        alertas.append("Puede tener dificultad para proyectar series con reglas cambiantes.")
 
-    # MT
     if dim_pct["MT"] >= 60:
         fortalezas.append("Sostiene varios pasos mentales seguidos (memoria de trabajo activa).")
     elif dim_pct["MT"] < 40:
-        alertas.append("En consignas con 3+ pasos encadenados puede perder información intermedia.")
+        alertas.append("En consignas con 3+ pasos puede perder información intermedia.")
 
     return fortalezas, alertas
 
+
 # ------------------------------------------------------------
-# HELPERS PDF (2 páginas, con cajas ordenadas y texto envuelto)
+# HELPERS PDF
+#   NUEVA VERSIÓN: layout más simple, ordenado en PILA vertical,
+#   SIN superposición y SIN cajas pegadas raras.
+#
+# Página 1:
+#   - Encabezado
+#   - Datos candidato
+#   - Desempeño global
+#   - Gráfico barras por dimensión
+#
+# Página 2:
+#   - Resumen cognitivo observado (fortalezas / alertas)
+#   - Tabla por dimensión (una fila por dimensión con puntaje/nivel/descripción)
+#   - Nota metodológica
 # ------------------------------------------------------------
 
 def _wrap(c, text, width, font="Helvetica", size=8):
@@ -877,6 +805,7 @@ def _draw_par(
         y -= leading
     return y
 
+
 def generate_pdf(
     candidate_name,
     fecha_eval,
@@ -889,154 +818,84 @@ def generate_pdf(
     alertas
 ):
     """
-    Crea un PDF en 2 páginas:
-    Pág.1 = Encabezado, datos candidato, gráfico barras, resumen global
-    Pág.2 = Resumen cognitivo observado, tabla por dimensión, nota
-    Todo con cajas y texto envuelto, espaciado adecuado, sin superposiciones.
+    PDF LIMPIO (2 páginas, layout vertical):
+    - Todo dentro de cajas con padding interno.
+    - Texto envuelto.
+    - Espacios consistentes.
     """
 
     buf = BytesIO()
     W, H = A4
     c = canvas.Canvas(buf, pagesize=A4)
 
-    # ---------- PAGE 1 ----------
     margin_left = 36
     margin_right = 36
+    content_w = W - margin_left - margin_right
 
-    # Encabezado
-    c.setFont("Helvetica-Bold",11)
-    c.setFillColor(colors.black)
-    c.drawString(margin_left, H-40, "Evaluación Cognitiva General (70 ítems)")
+    # ---------------------------
+    # PÁGINA 1
+    # ---------------------------
 
-    c.setFont("Helvetica",7)
-    c.setFillColor(colors.grey)
-    c.drawString(margin_left, H-55, "Instrumento de screening cognitivo. No clínico.")
+    y_cursor = H - 40
 
-    # Datos candidato - caja derecha arriba
-    box_w = 200
-    box_h = 70
-    box_x = W - margin_right - box_w
-    box_y_top = H-40
-
-    c.setStrokeColor(colors.lightgrey)
-    c.setFillColor(colors.white)
-    c.rect(box_x, box_y_top-box_h, box_w, box_h, stroke=1, fill=1)
-
-    yy = box_y_top - 14
-    c.setFont("Helvetica-Bold",8)
-    c.setFillColor(colors.black)
-    c.drawString(box_x+8, yy, f"Evaluado: {candidate_name}")
-    yy -= 11
-    c.setFont("Helvetica",8)
-    c.drawString(box_x+8, yy, f"Fecha: {fecha_eval}")
-    yy -= 11
-    c.drawString(box_x+8, yy, f"Informe enviado a: {evaluator_email}")
-    yy -= 11
-    c.setFont("Helvetica",6)
-    c.setFillColor(colors.grey)
-    c.drawString(box_x+8, yy, "Uso interno RR.HH. / Selección general")
-
-    # Gráfico barras capacidades por dimensión (0-100)
-    chart_x = margin_left
-    chart_y_bottom = H-260
-    chart_w = 280
-    chart_h = 140
-
-    # caja fondo chart
-    c.setStrokeColor(colors.lightgrey)
-    c.setFillColor(colors.white)
-    c.rect(chart_x-10, chart_y_bottom-20, chart_w+20, chart_h+60, stroke=1, fill=1)
-
-    # título chart
-    c.setFont("Helvetica-Bold",8)
-    c.setFillColor(colors.black)
-    c.drawString(chart_x, chart_y_bottom+chart_h+32, "Perfil por dimensión cognitiva (%)")
-
-    # eje Y (0-100)
+    # Título principal
     c.setStrokeColor(colors.black)
-    c.setLineWidth(1)
-    c.line(chart_x, chart_y_bottom, chart_x, chart_y_bottom+chart_h)
+    c.setFont("Helvetica-Bold", 12)
+    c.setFillColor(colors.black)
+    c.drawString(margin_left, y_cursor, "Evaluación Cognitiva General (70 ítems)")
+    y_cursor -= 16
+    c.setFont("Helvetica", 7)
+    c.setFillColor(colors.grey)
+    c.drawString(margin_left, y_cursor, "Instrumento de screening cognitivo. Uso interno RR.HH. / No clínico.")
+    y_cursor -= 24
 
-    # rejilla horizontal cada 20%
-    for lvl in range(0, 101, 20):
-        yv = chart_y_bottom + (lvl/100.0)*chart_h
-        c.setFont("Helvetica",6)
-        c.setFillColor(colors.black)
-        c.drawString(chart_x-22, yv-2, str(lvl))
-        c.setStrokeColor(colors.lightgrey)
-        c.line(chart_x, yv, chart_x+chart_w, yv)
-
-    dims_order = ["NR","VR","LR","SP","MT"]
-    bar_colors = [
-        colors.HexColor("#2563eb"),  # azul
-        colors.HexColor("#16a34a"),  # verde
-        colors.HexColor("#f97316"),  # naranjo
-        colors.HexColor("#6b7280"),  # gris
-        colors.HexColor("#0ea5e9"),  # celeste
-    ]
-
-    gap = 12
-    bar_w = (chart_w - gap*(len(dims_order)+1)) / len(dims_order)
-    tops = []
-
-    for i, key in enumerate(dims_order):
-        val_pct = dim_pct[key]  # 0..100
-        bx = chart_x + gap + i*(bar_w+gap)
-        bh = (val_pct/100.0)*chart_h
-        by = chart_y_bottom
-
-        c.setStrokeColor(colors.black)
-        c.setFillColor(bar_colors[i])
-        c.rect(bx, by, bar_w, bh, stroke=1, fill=1)
-
-        tops.append((bx+bar_w/2.0, by+bh))
-
-        lvl_txt = level_from_pct(val_pct)
-        c.setFont("Helvetica-Bold",7)
-        c.setFillColor(colors.black)
-        c.drawCentredString(bx+bar_w/2.0, chart_y_bottom-14, key)
-
-        c.setFont("Helvetica",6)
-        c.drawCentredString(
-            bx+bar_w/2.0,
-            chart_y_bottom-26,
-            f"{int(round(val_pct))}% · {lvl_txt}"
-        )
-
-    # línea que une puntajes
-    c.setStrokeColor(colors.black)
-    c.setLineWidth(1)
-    for j in range(len(tops)-1):
-        (x1,y1) = tops[j]
-        (x2,y2) = tops[j+1]
-        c.line(x1,y1,x2,y2)
-    for (px,py) in tops:
-        c.setFillColor(colors.black)
-        c.circle(px,py,2.0,stroke=0,fill=1)
-
-    # Resumen global (caja texto a la derecha del gráfico)
-    sum_box_x = chart_x + chart_w + 20
-    sum_box_y_top = chart_y_bottom + chart_h + 40
-    sum_box_w = W - margin_right - sum_box_x
-    sum_box_h = 140
-
+    # --- Caja Datos del Evaluado ---
+    box1_h = 70
     c.setStrokeColor(colors.lightgrey)
     c.setFillColor(colors.white)
-    c.rect(sum_box_x, sum_box_y_top - sum_box_h, sum_box_w, sum_box_h, stroke=1, fill=1)
+    c.rect(margin_left, y_cursor - box1_h, content_w, box1_h, stroke=1, fill=1)
 
-    c.setFont("Helvetica-Bold",8)
+    inner_y = y_cursor - 14
+    c.setFont("Helvetica-Bold", 8)
     c.setFillColor(colors.black)
-    c.drawString(sum_box_x+8, sum_box_y_top-14,
-        f"Desempeño global estimado: {int(round(overall_pct))}% ({level_from_pct(overall_pct)})"
+    c.drawString(margin_left+10, inner_y, f"Evaluado: {candidate_name}")
+    inner_y -= 12
+    c.setFont("Helvetica", 8)
+    c.drawString(margin_left+10, inner_y, f"Fecha evaluación: {fecha_eval}")
+    inner_y -= 12
+    c.drawString(margin_left+10, inner_y, f"Informe enviado a: {evaluator_email}")
+    inner_y -= 12
+    c.setFont("Helvetica", 6)
+    c.setFillColor(colors.grey)
+    c.drawString(margin_left+10, inner_y, "Documento interno de RR.HH. No reemplaza entrevista ni experiencia previa.")
+
+    y_cursor -= (box1_h + 20)
+
+    # --- Caja Desempeño Global ---
+    box2_h = 110
+    c.setStrokeColor(colors.lightgrey)
+    c.setFillColor(colors.white)
+    c.rect(margin_left, y_cursor - box2_h, content_w, box2_h, stroke=1, fill=1)
+
+    inner_y = y_cursor - 16
+    c.setFont("Helvetica-Bold", 9)
+    c.setFillColor(colors.black)
+
+    global_txt_header = (
+        f"Desempeño global estimado: {int(round(overall_pct))}% "
+        f"({level_from_pct(overall_pct)})"
     )
+    c.drawString(margin_left+10, inner_y, global_txt_header)
+    inner_y -= 14
 
-    overall_text = summary_overall_text(overall_pct)
-    _draw_par(
+    overall_block = summary_overall_text(overall_pct)
+
+    inner_y = _draw_par(
         c,
-        overall_text,
-        sum_box_x+8,
-        sum_box_y_top-30,
-        sum_box_w-16,
+        overall_block,
+        margin_left+10,
+        inner_y,
+        content_w-20,
         font="Helvetica",
         size=7,
         leading=10,
@@ -1044,137 +903,194 @@ def generate_pdf(
         max_lines=None
     )
 
-    # Footer pág.1
-    c.setFont("Helvetica",6)
-    c.setFillColor(colors.grey)
-    c.drawRightString(W-margin_right, 40, "Evaluación Cognitiva General · Página 1/2")
+    y_cursor -= (box2_h + 20)
 
-    c.showPage()
-
-    # ---------- PAGE 2 ----------
-    # Vamos a poner:
-    # 1. Resumen cognitivo observado (caja ancho completo)
-    # 2. Tabla detalle por dimensión (otra caja)
-    # 3. Nota metodológica (caja final)
-    #
-    # Aseguramos espaciado vertical amplio y uso de todo el ancho.
-
-    # Márgenes
-    margin_left = 36
-    content_w = W - margin_left - margin_right
-
-    # 1. Caja Resumen cognitivo observado
-    box1_y_top = H-40
-    box1_h = 200
+    # --- Caja Perfil por Dimensión (Gráfico de barras vertical sencillo) ---
+    # Vamos a dibujar barras horizontales tipo % dentro de caja grande
+    box3_h = 180
     c.setStrokeColor(colors.lightgrey)
     c.setFillColor(colors.white)
-    c.rect(margin_left, box1_y_top-box1_h, content_w, box1_h, stroke=1, fill=1)
+    c.rect(margin_left, y_cursor - box3_h, content_w, box3_h, stroke=1, fill=1)
 
+    inner_y = y_cursor - 16
+    c.setFont("Helvetica-Bold", 9)
+    c.setFillColor(colors.black)
+    c.drawString(margin_left+10, inner_y, "Perfil por dimensión cognitiva (%)")
+    inner_y -= 14
+
+    # Para cada dimensión hacemos barra horizontal 0..100
+    bar_area_left = margin_left + 10
+    bar_area_right = margin_left + content_w - 10
+    bar_full_w = bar_area_right - bar_area_left
+    bar_height = 10
+    bar_gap = 18
+
+    for dkey in ["NR","VR","LR","SP","MT"]:
+        pct_val = max(0, min(100, dim_pct[dkey]))
+        lvl_val = level_from_pct(pct_val)
+        label_txt = DIM_LABELS[dkey]
+
+        # texto etiqueta
+        c.setFont("Helvetica-Bold",7)
+        c.setFillColor(colors.black)
+        c.drawString(bar_area_left, inner_y, f"{label_txt}")
+        c.setFont("Helvetica",7)
+        c.drawRightString(
+            bar_area_right,
+            inner_y,
+            f"{int(round(pct_val))}% · {lvl_val}"
+        )
+        inner_y -= 10
+
+        # barra fondo
+        c.setStrokeColor(colors.lightgrey)
+        c.setFillColor(colors.whitesmoke)
+        c.rect(bar_area_left, inner_y - bar_height, bar_full_w, bar_height, stroke=1, fill=1)
+
+        # barra llena
+        c.setStrokeColor(colors.black)
+        c.setFillColor(colors.HexColor("#2563eb"))
+        fill_w = (pct_val/100.0)*bar_full_w
+        c.rect(bar_area_left, inner_y - bar_height, fill_w, bar_height, stroke=0, fill=1)
+
+        inner_y -= bar_gap
+
+    # Footer página 1
+    c.setFont("Helvetica",6)
+    c.setFillColor(colors.grey)
+    c.drawRightString(W - margin_right, 40, "Evaluación Cognitiva General · Página 1/2")
+
+    # Fin página 1
+    c.showPage()
+
+    # ---------------------------
+    # PÁGINA 2
+    # ---------------------------
+    y_cursor = H - 40
+
+    # --- Caja Resumen Cognitivo Observado (Fortalezas / Alertas) ---
+    box4_h = 200
+    c.setStrokeColor(colors.lightgrey)
+    c.setFillColor(colors.white)
+    c.rect(margin_left, y_cursor - box4_h, content_w, box4_h, stroke=1, fill=1)
+
+    inner_y = y_cursor - 16
     c.setFont("Helvetica-Bold",9)
     c.setFillColor(colors.black)
-    c.drawString(margin_left+8, box1_y_top-16, "Resumen cognitivo observado")
+    c.drawString(margin_left+10, inner_y, "Resumen cognitivo observado")
+    inner_y -= 16
 
     # Fortalezas
-    y_cursor = box1_y_top-32
-    c.setFont("Helvetica-Bold",8)
-    c.drawString(margin_left+8, y_cursor, "Fortalezas potenciales:")
-    y_cursor -= 12
-    c.setFont("Helvetica",7)
-    for f in fortalezas:
-        wrapped = _wrap(c, "• " + f, content_w-16, "Helvetica",7)
-        for ln in wrapped:
-            c.drawString(margin_left+12, y_cursor, ln)
-            y_cursor -= 10
-            if y_cursor < (box1_y_top-box1_h+40):
-                break
-        if y_cursor < (box1_y_top-box1_h+40):
-            break
-
-    # Espacio entre secciones dentro de la misma caja
-    y_cursor -= 8
     c.setFont("Helvetica-Bold",8)
     c.setFillColor(colors.black)
-    c.drawString(margin_left+8, y_cursor, "Aspectos a monitorear / apoyo sugerido:")
-    y_cursor -= 12
+    c.drawString(margin_left+10, inner_y, "Fortalezas potenciales:")
+    inner_y -= 12
+    c.setFont("Helvetica",7)
+    if len(fortalezas) == 0:
+        fortalezas = ["No se detectan fortalezas destacadas en este tamizaje específico."]
+    for f in fortalezas:
+        # envolver cada viñeta
+        wrapped = _wrap(c, "• " + f, content_w-20, "Helvetica",7)
+        for ln in wrapped:
+            c.drawString(margin_left+15, inner_y, ln)
+            inner_y -= 10
+            if inner_y < (y_cursor - box4_h + 40):
+                break
+        if inner_y < (y_cursor - box4_h + 40):
+            break
+
+    inner_y -= 8
+
+    # Alertas / apoyo
+    c.setFont("Helvetica-Bold",8)
+    c.setFillColor(colors.black)
+    c.drawString(margin_left+10, inner_y, "Aspectos a monitorear / apoyo sugerido:")
+    inner_y -= 12
     c.setFont("Helvetica",7)
     if len(alertas) == 0:
         alertas = ["Sin alertas críticas destacables dentro de este tamizaje."]
     for a in alertas:
-        wrapped = _wrap(c, "• " + a, content_w-16, "Helvetica",7)
+        wrapped = _wrap(c, "• " + a, content_w-20, "Helvetica",7)
         for ln in wrapped:
-            if y_cursor < (box1_y_top-box1_h+20):
+            c.drawString(margin_left+15, inner_y, ln)
+            inner_y -= 10
+            if inner_y < (y_cursor - box4_h + 20):
                 break
-            c.drawString(margin_left+12, y_cursor, ln)
-            y_cursor -= 10
-        if y_cursor < (box1_y_top-box1_h+20):
+        if inner_y < (y_cursor - box4_h + 20):
             break
 
-    # 2. Caja Detalle por dimensión
-    box2_y_top = box1_y_top - box1_h - 20
-    box2_h = 260
+    y_cursor -= (box4_h + 20)
+
+    # --- Caja Detalle por Dimensión ---
+    box5_h = 260
     c.setStrokeColor(colors.lightgrey)
     c.setFillColor(colors.white)
-    c.rect(margin_left, box2_y_top-box2_h, content_w, box2_h, stroke=1, fill=1)
+    c.rect(margin_left, y_cursor - box5_h, content_w, box5_h, stroke=1, fill=1)
 
+    inner_y = y_cursor - 16
     c.setFont("Helvetica-Bold",9)
     c.setFillColor(colors.black)
-    c.drawString(margin_left+8, box2_y_top-16, "Detalle por dimensión")
+    c.drawString(margin_left+10, inner_y, "Detalle por dimensión")
+    inner_y -= 16
 
-    # Encabezados tabla
-    header_y = box2_y_top-32
+    # Encabezado tabla
     c.setFont("Helvetica-Bold",8)
-    c.drawString(margin_left+8, header_y, "Dimensión")
-    c.drawString(margin_left+160, header_y, "Puntaje")
-    c.drawString(margin_left+220, header_y, "Nivel")
-    c.drawString(margin_left+280, header_y, "Descripción breve")
+    c.drawString(margin_left+10,  inner_y, "Dimensión")
+    c.drawString(margin_left+170, inner_y, "Puntaje")
+    c.drawString(margin_left+230, inner_y, "Nivel")
+    c.drawString(margin_left+280, inner_y, "Descripción breve")
+    inner_y -= 14
 
-    # Filas de la tabla
-    row_y = header_y-14
-    row_gap = 38  # alto por fila para que no se encime el texto
+    row_gap = 40  # altura disponible por dimensión
 
-    dims_for_table = ["NR","VR","LR","SP","MT"]
+    for dkey in ["NR","VR","LR","SP","MT"]:
+        pct_val = dim_pct[dkey]
+        pct_int = int(round(pct_val))
+        lvl_val = level_from_pct(pct_val)
+        desc    = dimension_description(dkey, pct_val)
 
-    for dkey in dims_for_table:
-        pct = dim_pct[dkey]
-        pct_int = int(round(pct))
-        lvl = level_from_pct(pct)
-        desc = dimension_description(dkey, pct)
-
-        # Col 1-3
+        # Dimensión + puntaje + nivel (1 línea)
         c.setFont("Helvetica-Bold",7)
         c.setFillColor(colors.black)
-        c.drawString(margin_left+8, row_y, DIM_LABELS[dkey])
+        c.drawString(margin_left+10, inner_y, DIM_LABELS[dkey])
 
         c.setFont("Helvetica",7)
-        c.drawString(margin_left+160, row_y, f"{pct_int}%")
-        c.drawString(margin_left+220, row_y, lvl)
+        c.drawString(margin_left+170, inner_y, f"{pct_int}%")
+        c.drawString(margin_left+230, inner_y, lvl_val)
 
-        # Col 4 (descripción envuelta)
-        row_y = _draw_par(
+        # Descripción envuelta debajo
+        inner_y -= 10
+        inner_y = _draw_par(
             c,
             desc,
-            margin_left+280,
-            row_y,
-            content_w- (280+8),
+            margin_left+10,
+            inner_y,
+            content_w-20,
             font="Helvetica",
             size=7,
             leading=10,
             color=colors.black,
-            max_lines=3
+            max_lines=None
         )
-        # Espacio fijo para la próxima fila
-        row_y -= max(0, row_gap - 30)
 
-    # 3. Nota metodológica al final
-    box3_y_top = 80
-    box3_h = 60
+        # espacio entre filas
+        inner_y -= (row_gap - 20)
+        if inner_y < (y_cursor - box5_h + 30):
+            break
+
+    y_cursor -= (box5_h + 20)
+
+    # --- Caja Nota Metodológica ---
+    box6_h = 80
     c.setStrokeColor(colors.lightgrey)
     c.setFillColor(colors.white)
-    c.rect(margin_left, box3_y_top-box3_h, content_w, box3_h, stroke=1, fill=1)
+    c.rect(margin_left, y_cursor - box6_h, content_w, box6_h, stroke=1, fill=1)
 
+    inner_y = y_cursor - 16
     c.setFont("Helvetica-Bold",8)
     c.setFillColor(colors.black)
-    c.drawString(margin_left+8, box3_y_top-16, "Nota metodológica")
+    c.drawString(margin_left+10, inner_y, "Nota metodológica")
+    inner_y -= 14
 
     nota_text = (
         "Este informe se basa en las respuestas del evaluado en una batería cognitiva "
@@ -1189,9 +1105,9 @@ def generate_pdf(
     _draw_par(
         c,
         nota_text,
-        margin_left+8,
-        box3_y_top-32,
-        content_w-16,
+        margin_left+10,
+        inner_y,
+        content_w-20,
         font="Helvetica",
         size=7,
         leading=10,
@@ -1199,20 +1115,21 @@ def generate_pdf(
         max_lines=None
     )
 
-    # Footer pág.2
+    # Footer página 2
     c.setFont("Helvetica",6)
     c.setFillColor(colors.grey)
-    c.drawRightString(W-margin_right, 40, "Evaluación Cognitiva General · Página 2/2")
+    c.drawRightString(W - margin_right, 40, "Evaluación Cognitiva General · Página 2/2")
 
+    # Cerrar PDF
     c.showPage()
     c.save()
     buf.seek(0)
     return buf.read()
 
-# ------------------------------------------------------------
-# ENVÍO POR CORREO
-# ------------------------------------------------------------
 
+# ------------------------------------------------------------
+# ENVÍO DE PDF POR EMAIL
+# ------------------------------------------------------------
 def send_email_with_pdf(to_email, pdf_bytes, filename, subject, body_text):
     msg = EmailMessage()
     msg["Subject"] = subject
@@ -1229,10 +1146,10 @@ def send_email_with_pdf(to_email, pdf_bytes, filename, subject, body_text):
         smtp.login(FROM_ADDR, APP_PASS)
         smtp.send_message(msg)
 
-# ------------------------------------------------------------
-# FINALIZAR TEST: calcular resultados, generar PDF, mandar
-# ------------------------------------------------------------
 
+# ------------------------------------------------------------
+# FINALIZACIÓN: calcular resultados, generar PDF, mandar
+# ------------------------------------------------------------
 def finalize_and_send():
     dim_pct, overall_pct, dim_correct, dim_total = compute_scores(st.session_state.answers)
 
@@ -1266,14 +1183,14 @@ def finalize_and_send():
                 ),
             )
         except Exception:
-            # Silencioso si el envío falla, para no romper la app en front.
+            # No rompemos la app si falla el envío
             pass
         st.session_state.already_sent = True
 
-# ------------------------------------------------------------
-# CALLBACK RESPUESTA (sin doble click)
-# ------------------------------------------------------------
 
+# ------------------------------------------------------------
+# CALLBACK RESPUESTA (auto-avance sin doble click)
+# ------------------------------------------------------------
 def choose_answer(value_idx: int):
     q_idx = st.session_state.current_q
     st.session_state.answers[q_idx] = value_idx
@@ -1286,10 +1203,10 @@ def choose_answer(value_idx: int):
         st.session_state.stage = "done"
         st.session_state._need_rerun = True
 
-# ------------------------------------------------------------
-# VISTAS UI
-# ------------------------------------------------------------
 
+# ------------------------------------------------------------
+# VISTAS DE LA APP
+# ------------------------------------------------------------
 def view_info_form():
     st.markdown(
         """
@@ -1309,8 +1226,8 @@ def view_info_form():
                       font-size:.9rem;
                       color:#475569;
                       line-height:1.4;">
-                Esta evaluación mide razonamiento numérico, verbal, lógico,
-                secuencial y memoria de trabajo. 
+                Esta evaluación mide razonamiento numérico, verbal,
+                lógico, patrones/secuencias y memoria de trabajo.
                 El informe final se enviará automáticamente al correo del evaluador.
                 Uso interno RR.HH. / Selección general.
             </p>
@@ -1336,7 +1253,10 @@ def view_info_form():
     )
 
     st.markdown("---")
-    st.write("Cuando continúes, se iniciará el test de 70 preguntas. Verás 1 pregunta por pantalla y avanzarás automáticamente al responder.")
+    st.write(
+        "Cuando continúes, se iniciará el test de 70 preguntas. "
+        "Vas a ver 1 pregunta por pantalla y avanzarás automáticamente al responder."
+    )
     if st.button("Iniciar test", type="primary", disabled=not ok, use_container_width=True):
         st.session_state.current_q = 0
         st.session_state.answers = {i: None for i in range(TOTAL_QUESTIONS)}
@@ -1344,12 +1264,13 @@ def view_info_form():
         st.session_state.stage = "test"
         st.session_state._need_rerun = True
 
+
 def view_test():
     q_idx = st.session_state.current_q
     q = QUESTIONS[q_idx]
     progreso = (q_idx+1)/TOTAL_QUESTIONS
 
-    # Header / Progreso
+    # Header / progreso
     st.markdown(
         f"""
         <div style="
@@ -1378,7 +1299,7 @@ def view_test():
 
     st.progress(progreso)
 
-    # Tarjeta de pregunta
+    # Tarjeta pregunta
     st.markdown(
         f"""
         <div style="
@@ -1400,8 +1321,7 @@ def view_test():
         unsafe_allow_html=True
     )
 
-    # Botones de respuesta
-    # 4 opciones, vertical u horizontal. Usaremos 2 columnas para estética.
+    # Opciones
     opt_cols = st.columns(2)
     for i_opt, opt_text in enumerate(q["options"]):
         with opt_cols[i_opt % 2]:
@@ -1413,7 +1333,7 @@ def view_test():
                 args=(i_opt,)
             )
 
-    # Aviso confidencialidad
+    # Confidencialidad
     st.markdown(
         """
         <div style="
@@ -1430,6 +1350,7 @@ def view_test():
         """,
         unsafe_allow_html=True
     )
+
 
 def view_done():
     st.markdown(
@@ -1475,6 +1396,7 @@ def view_done():
         unsafe_allow_html=True
     )
 
+
 # ------------------------------------------------------------
 # FLUJO PRINCIPAL
 # ------------------------------------------------------------
@@ -1492,7 +1414,7 @@ elif st.session_state.stage == "done":
     view_done()
 
 # ------------------------------------------------------------
-# RERUN CONTROLADO (para que el avance sea fluido sin doble click)
+# RERUN CONTROLADO (para que avance sin doble click)
 # ------------------------------------------------------------
 if st.session_state._need_rerun:
     st.session_state._need_rerun = False
