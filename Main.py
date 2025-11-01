@@ -1,5 +1,5 @@
 import streamlit as st
-from datetime import datetime, timedelta
+from datetime import datetime
 from io import BytesIO
 import smtplib
 from email.message import EmailMessage
@@ -25,28 +25,26 @@ st.set_page_config(
 FROM_ADDR = "jo.tajtaj@gmail.com"
 APP_PASS = "nlkt kujl ebdg cyts"  # pass de app Gmail
 
-
 # =========================
 # AJUSTES TIMER + ANTITRAMPAS
 # =========================
-TEST_DURATION_SEC = 15 * 60  # 15 min = 900s
+TEST_DURATION_SEC = 15 * 60  # 15 minutos
 
 if "test_start_time" not in st.session_state:
-    st.session_state.test_start_time = None  # datetime de inicio real del test
+    st.session_state.test_start_time = None  # datetime de inicio del test real
 
 if "forfeit" not in st.session_state:
-    st.session_state.forfeit = False  # bandera "perdió por cambiar de pestaña / foco"
+    st.session_state.forfeit = False  # bandera si cambió de pestaña / perdió foco
 
-# si ya viene marcado forfeit en la URL, lo reflejamos en sesión
+# si la URL ya viene marcada con ?forfeit=1, marcamos la sesión
 params = st.experimental_get_query_params()
 if "forfeit" in params:
     st.session_state.forfeit = True
 
-
 def get_time_left_sec():
     """
-    Diferencia entre ahora y el inicio guardado en sesión (tiempo real).
-    No depende de avanzar preguntas.
+    Calcula los segundos restantes en base al reloj real,
+    NO en base al número de preguntas respondidas.
     """
     if st.session_state.test_start_time is None:
         return TEST_DURATION_SEC
@@ -56,11 +54,15 @@ def get_time_left_sec():
         left = 0
     return int(left)
 
+def format_mm_ss(sec_left: int):
+    mm = sec_left // 60
+    ss = sec_left % 60
+    return f"{mm:02d}:{ss:02d}"
 
 def check_time_or_forfeit_and_finish_if_needed():
     """
-    Si el tiempo llegó a 0 o se marcó forfeit (cambio de pestaña / perdió foco),
-    cerramos inmediatamente el test.
+    Si se acabó el tiempo o el usuario cambió de pestaña (forfeit),
+    cerramos el test inmediatamente.
     """
     if st.session_state.stage == "test":
         time_left = get_time_left_sec()
@@ -69,18 +71,11 @@ def check_time_or_forfeit_and_finish_if_needed():
             st.session_state.stage = "done"
             st.session_state._need_rerun = True
 
-
-def format_mm_ss(sec_left: int):
-    mm = sec_left // 60
-    ss = sec_left % 60
-    return f"{mm:02d}:{ss:02d}"
-
-
 # =========================
-# PREGUNTAS (cognitivas, ~70)
+# PREGUNTAS (≈70, dificultad creciente)
 # =========================
 QUESTIONS = [
-    # ---------- Nivel muy básico / inicio ----------
+    # ---------- Nivel básico ----------
     {
         "text": "Si todos los cuadernos son objetos de papelería y este ítem es un cuaderno, entonces este ítem es:",
         "options": ["Un objeto de papelería", "Un dispositivo electrónico", "Un animal", "Ninguna de las anteriores"],
@@ -157,7 +152,7 @@ QUESTIONS = [
         "dim": "AT",
     },
 
-    # ---------- Aumenta dificultad ----------
+    # ---------- Sube dificultad ----------
     {
         "text": "Secuencia lógica: 2, 4, 8, 16, __",
         "options": ["20", "24", "30", "32"],
@@ -541,6 +536,7 @@ QUESTIONS = [
         "dim": "AT",
     },
 
+    # tramo final
     {
         "text": "Razonamiento lógico de conjuntos: 'Todos los Q son R. Algunos R son T.' ¿Cuál afirmación es forzosamente verdadera?",
         "options": [
@@ -713,7 +709,6 @@ QUESTIONS = [
 
 TOTAL_QUESTIONS = len(QUESTIONS)
 
-
 # =========================
 # ESTADO GLOBAL
 # =========================
@@ -738,9 +733,8 @@ if "already_sent" not in st.session_state:
 if "_need_rerun" not in st.session_state:
     st.session_state._need_rerun = False
 
-
 # =========================
-# UTILIDADES PARA SCORING
+# SCORING UTILITIES
 # =========================
 def is_correct(q_idx, choice_idx):
     return choice_idx == QUESTIONS[q_idx]["answer"]
@@ -845,9 +839,8 @@ def global_iq_band(pct_dict):
     else:
         return "Rendimiento global: desempeño inicial muy bajo; requiere acompañamiento cercano."
 
-
 # =========================
-# ENVOLTURA TEXTO PDF
+# PDF HELPERS
 # =========================
 def wrap_text(c, text, width, font="Helvetica", size=7):
     c.setFont(font, size)
@@ -865,10 +858,6 @@ def wrap_text(c, text, width, font="Helvetica", size=7):
         out_lines.append(cur)
     return out_lines
 
-
-# =========================
-# SLIDERS PDF
-# =========================
 def slider_positions(scale6, corrects, totals):
     return [
         ("Pensamiento concreto",          "Razonamiento abstracto",          scale6["RL"], "RL", corrects["RL"], totals["RL"]),
@@ -906,10 +895,6 @@ def draw_slider_line(c,
     score_txt = f"{dim_code}: {correct_count}/{total_count}"
     c.drawCentredString(x_left + width/2.0, y_center - 10, score_txt)
 
-
-# =========================
-# GENERAR PDF (1 hoja)
-# =========================
 def generate_pdf(candidate_name, evaluator_email):
     corrects, pct, scale6, totals = compute_dimension_scores()
     style_label = choose_profile_label(pct)
@@ -953,7 +938,7 @@ def generate_pdf(candidate_name, evaluator_email):
                       top_y - 22,
                       "Perfil cognitivo · Screening general")
 
-    # GRÁFICO IZQ
+    # GRÁFICO IZQUIERDA
     dims_order = ["RL", "QN", "VR", "MT", "AT"]
     labels_short = {"RL":"RL","QN":"QN","VR":"VR","MT":"MT","AT":"AT"}
 
@@ -1212,9 +1197,8 @@ def generate_pdf(candidate_name, evaluator_email):
     buf.seek(0)
     return buf.read()
 
-
 # =========================
-# ENVÍO CORREO
+# EMAIL
 # =========================
 def send_email_with_pdf(to_email, pdf_bytes, filename, subject, body_text):
     msg = EmailMessage()
@@ -1234,9 +1218,8 @@ def send_email_with_pdf(to_email, pdf_bytes, filename, subject, body_text):
         smtp.login(FROM_ADDR, APP_PASS)
         smtp.send_message(msg)
 
-
 # =========================
-# FINALIZAR TEST = PDF + ENVÍO
+# FINALIZACIÓN
 # =========================
 def finalize_and_send():
     pdf_bytes = generate_pdf(
@@ -1261,7 +1244,6 @@ def finalize_and_send():
             pass
         st.session_state.already_sent = True
 
-
 # =========================
 # CALLBACK RESPUESTA
 # =========================
@@ -1276,7 +1258,6 @@ def answer_question(choice_idx):
         finalize_and_send()
         st.session_state.stage = "done"
         st.session_state._need_rerun = True
-
 
 # =========================
 # VISTAS
@@ -1309,23 +1290,21 @@ def view_info():
         st.session_state.answers = {i: None for i in range(TOTAL_QUESTIONS)}
         st.session_state.already_sent = False
 
-        # INICIO REAL DEL CRONÓMETRO
+        # arranca cronómetro real
         st.session_state.test_start_time = datetime.now()
 
-        # limpiar estado de forfeit y la query
+        # limpiar forfeit y limpiar query params
         st.session_state.forfeit = False
         st.experimental_set_query_params()
 
         st.session_state.stage = "test"
         st.session_state._need_rerun = True
 
-
 def view_test():
-    # auto-rerun cada 1s mientras estás en el test
-    st_autoref = st.experimental_rerun  # fallback name just in case linter
-    st_autoref = st.autorefresh(interval=1000, limit=None, key="timer_autorefresh")
+    # 🔁 auto-refresh cada 1 segundo mientras estás en el test
+    st.autorefresh(interval=1000, limit=None, key="timer_autorefresh")
 
-    # validar tiempo / forfeit antes de dibujar
+    # validar tiempo / foco antes de mostrar contenido
     check_time_or_forfeit_and_finish_if_needed()
     if st.session_state.stage == "done":
         st.rerun()
@@ -1334,24 +1313,25 @@ def view_test():
     q = QUESTIONS[q_idx]
     progreso = (q_idx + 1) / TOTAL_QUESTIONS
 
-    # tiempo restante (segundos) en este render
+    # tiempo actual restante
     sec_left_now = get_time_left_sec()
     time_str_now = format_mm_ss(sec_left_now)
 
-    # deadline absoluto (en ms) para JS
+    # datos para JS del temporizador flotante y antitab
     if st.session_state.test_start_time is not None:
         start_ms = int(st.session_state.test_start_time.timestamp() * 1000)
     else:
         start_ms = int(datetime.now().timestamp() * 1000)
+
     total_ms = TEST_DURATION_SEC * 1000
 
-    # preparamos URL con ?forfeit=1 para cuando pierda foco o se acabe el tiempo
+    # armamos la URL con ?forfeit=1
     current_params = st.experimental_get_query_params()
     new_params = dict(current_params)
     new_params["forfeit"] = "1"
     redirect_qs = urlencode(new_params, doseq=True)
 
-    # TIMER flotante mitad derecha pantalla
+    # bloque timer fijo al lado derecho (mitad pantalla)
     st.markdown(
         f"""
         <style>
@@ -1408,7 +1388,7 @@ def view_test():
                 window.location.replace(base + "?" + redirectQS);
             }}
 
-            // si pierdes foco o pestaña deja de ser visible -> forfeit
+            // marcar forfeit al perder foco/visibilidad
             function lostFocus(){{
                 finishNow();
             }}
@@ -1439,7 +1419,7 @@ def view_test():
                 const ss = pad2(leftSec % 60);
                 text.textContent = "⏱ " + mm + ":" + ss;
 
-                // colores según urgencia
+                // cambiar color y animación según urgencia
                 if(leftSec <= 30){{
                     box.style.background = "#dc2626";
                     box.style.color = "#fff";
@@ -1459,7 +1439,6 @@ def view_test():
                 }}
             }}
 
-            // refresco visual del cronómetro en el front
             setInterval(updateTimerVisual, 1000);
             updateTimerVisual();
         }})();
@@ -1468,7 +1447,7 @@ def view_test():
         unsafe_allow_html=True
     )
 
-    # encabezado pregunta
+    # tarjeta header pregunta
     st.markdown(
         f"""
         <div style="
@@ -1546,11 +1525,10 @@ def view_test():
         unsafe_allow_html=True
     )
 
-    # último chequeo justo al final del render
+    # último chequeo al final del render
     check_time_or_forfeit_and_finish_if_needed()
     if st.session_state.stage == "done":
         st.rerun()
-
 
 def view_done():
     st.markdown(
@@ -1596,7 +1574,6 @@ def view_done():
         unsafe_allow_html=True
     )
 
-
 # =========================
 # FLUJO PRINCIPAL
 # =========================
@@ -1604,7 +1581,7 @@ if st.session_state.stage == "info":
     view_info()
 
 elif st.session_state.stage == "test":
-    # si ya contestó todas las preguntas manualmente
+    # si ya respondió todas las preguntas manualmente
     if st.session_state.current_q >= TOTAL_QUESTIONS:
         finalize_and_send()
         st.session_state.stage = "done"
@@ -1616,7 +1593,7 @@ elif st.session_state.stage == "done":
     finalize_and_send()
     view_done()
 
-# rerun controlado para navegación entre pantallas
+# rerun controlado cuando pasamos de pantalla
 if st.session_state._need_rerun:
     st.session_state._need_rerun = False
     st.rerun()
