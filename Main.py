@@ -39,9 +39,11 @@ if "test_start_time" not in st.session_state:
 if "forfeit" not in st.session_state:
     st.session_state.forfeit = False  # bandera de "perdió por cambiar de pestaña"
 
-# Detectar si la pestaña perdió foco o si el usuario abrió otra pestaña/app:
-# Estrategia: inyectamos JS que escucha eventos de pérdida de foco / cambio de visibilidad
-# y fuerza una recarga con ?forfeit=1. Luego Python lo ve y finaliza.
+# Detectar si la pestaña perdió foco, cambió de tab o abrió otra app:
+# Ahora haremos 2 cosas:
+# 1. Seguimos escuchando blur / visibilitychange.
+# 2. Agregamos un setInterval que revisa document.hasFocus() cada 500ms.
+#    Si detecta que la ventana ya no está enfocada -> gatilla forfeit inmediato.
 from urllib.parse import urlencode
 
 params = st.experimental_get_query_params()
@@ -54,14 +56,13 @@ def js_focus_guard():
     Inyecta JavaScript que:
     - Escucha 'visibilitychange' (cambiar de pestaña/ventana)
     - Escucha 'blur' (pierde foco la pestaña/ventana)
-    - Si ocurre, redirige la URL agregando ?forfeit=1 (lo que gatilla finalización inmediata)
+    - Hace polling de document.hasFocus()
+    - Si ocurre pérdida de foco, redirige a la misma URL con ?forfeit=1
     """
     current_params = st.experimental_get_query_params()
-    # si ya tiene forfeit, no volvemos a redirigir
     if "forfeit" in current_params:
         return
 
-    # armamos URL con ?forfeit=1 conservando otros params
     new_params = dict(current_params)
     new_params["forfeit"] = "1"
     query_str = urlencode(new_params, doseq=True)
@@ -78,12 +79,23 @@ def js_focus_guard():
                 const qs = "{query_str}";
                 window.location.replace(base + "?" + qs);
             }}
+
+            // perder foco ventana
             window.addEventListener("blur", flagForfeit);
+
+            // cambiar visibilidad (ir a otra pestaña / minimizar)
             document.addEventListener("visibilitychange", function() {{
                 if (document.hidden) {{
                     flagForfeit();
                 }}
             }});
+
+            // polling cada 500ms para asegurar captura si el browser bloquea eventos
+            setInterval(function(){{
+                if (!document.hasFocus()) {{
+                    flagForfeit();
+                }}
+            }}, 500);
         }})();
         </script>
         """,
@@ -221,7 +233,7 @@ QUESTIONS = [
             "4 cajas",
             "5 cajas"
         ],
-        "answer": 2,  # (ver comentario previo en tu código)
+        "answer": 2,
         "dim": "QN",
     },
     {
@@ -283,7 +295,7 @@ QUESTIONS = [
             "16",
             "18"
         ],
-        "answer": 0,  # (comentario previo en tu código, luego corregido en la siguiente)
+        "answer": 0,
         "dim": "QN",
     },
     {
@@ -604,7 +616,7 @@ QUESTIONS = [
     {
         "text": "Razonamiento cuantitativo proporcional: Si una mezcla tiene relación 2:3 de agua a solvente, y tienes 10 unidades de solvente, ¿cuánta agua corresponde mantener para la misma proporción?",
         "options": ["4", "5", "6", "8"],
-        "answer": 2,  # ~6-7 aprox, tomamos 6
+        "answer": 2,  # ~6-7 aprox
         "dim": "QN",
     },
     {
@@ -1409,7 +1421,10 @@ def view_test():
         timer_fg = "#fff"
         pulse_anim = "pulseBlue"
 
-    # TIMER FLOTANTE (esquina superior derecha, grande, animado)
+    # TIMER FLOTANTE
+    # Ajuste solicitado:
+    # - Mostrarlo en la mitad de la pantalla (verticalmente centro-ish en el costado derecho).
+    #   Usamos top:50vh y translateY(-50%) para centrarlo visualmente.
     st.markdown(
         f"""
         <style>
@@ -1420,8 +1435,9 @@ def view_test():
         }}
         .timerFloat {{
             position:fixed;
-            top:16px;
+            top:50vh;
             right:16px;
+            transform:translateY(-50%);
             z-index:9999;
             background:{timer_bg};
             color:{timer_fg};
