@@ -39,11 +39,8 @@ if "test_start_time" not in st.session_state:
 if "forfeit" not in st.session_state:
     st.session_state.forfeit = False  # bandera de "perdió por cambiar de pestaña"
 
-# Detectar si la pestaña perdió foco, cambió de tab o abrió otra app:
-# Ahora haremos 2 cosas:
-# 1. Seguimos escuchando blur / visibilitychange.
-# 2. Agregamos un setInterval que revisa document.hasFocus() cada 500ms.
-#    Si detecta que la ventana ya no está enfocada -> gatilla forfeit inmediato.
+# Detectar si la pestaña perdió foco, cambió de tab o abrió otra app,
+# vía query param "forfeit=1" (el JS redirige la URL con ese parámetro)
 from urllib.parse import urlencode
 
 params = st.experimental_get_query_params()
@@ -54,13 +51,14 @@ if "forfeit" in params:
 def js_focus_guard():
     """
     Inyecta JavaScript que:
-    - Escucha 'visibilitychange' (cambiar de pestaña/ventana)
-    - Escucha 'blur' (pierde foco la pestaña/ventana)
-    - Hace polling de document.hasFocus()
-    - Si ocurre pérdida de foco, redirige a la misma URL con ?forfeit=1
+    - Escucha varios eventos de pérdida de foco / cambio de visibilidad / abandono.
+    - Hace polling de document.hasFocus() cada 200ms.
+    - Si detecta pérdida de atención en la pestaña, redirige a la misma URL con ?forfeit=1
+      para gatillar el término inmediato del test en Python.
     """
     current_params = st.experimental_get_query_params()
     if "forfeit" in current_params:
+        # Ya está marcado forfeit en la URL, no volvemos a sobrescribir
         return
 
     new_params = dict(current_params)
@@ -80,22 +78,27 @@ def js_focus_guard():
                 window.location.replace(base + "?" + qs);
             }}
 
-            // perder foco ventana
+            // Pestaña pierde foco (blur en la ventana)
             window.addEventListener("blur", flagForfeit);
 
-            // cambiar visibilidad (ir a otra pestaña / minimizar)
+            // Pestaña deja de estar visible (cambiar de tab / minimizar)
             document.addEventListener("visibilitychange", function() {{
                 if (document.hidden) {{
                     flagForfeit();
                 }}
             }});
 
-            // polling cada 500ms para asegurar captura si el browser bloquea eventos
+            // Navegador registra que la página está siendo ocultada / reemplazada
+            window.addEventListener("pagehide", function() {{
+                flagForfeit();
+            }});
+
+            // Refuerzo continuo: chequeo si la pestaña sigue enfocada
             setInterval(function(){{
                 if (!document.hasFocus()) {{
                     flagForfeit();
                 }}
-            }}, 500);
+            }}, 200);
         }})();
         </script>
         """,
@@ -109,6 +112,8 @@ def get_time_left_sec():
     Si ya se acabó el tiempo, devuelve 0.
     """
     if st.session_state.test_start_time is None:
+        # si por alguna razón no se ha seteado aún (antes de presionar "Iniciar test"),
+        # devolvemos el total completo visualmente
         return TEST_DURATION_SEC
     elapsed = (datetime.now() - st.session_state.test_start_time).total_seconds()
     left = TEST_DURATION_SEC - elapsed
@@ -1180,9 +1185,9 @@ def generate_pdf(candidate_name, evaluator_email):
     c.drawString(panel_x + 8, yg, "AT  Atención al Detalle / Precisión")
 
     # BLOQUE SLIDERS
-    sliders_box_x = margin_left
+    sliders_box_x = 30
     sliders_box_y_top = chart_y_bottom - 30
-    sliders_box_w = W - margin_left - margin_right
+    sliders_box_w = W - 30 - 30
     sliders_box_h = 140
 
     c.setStrokeColor(colors.black)
@@ -1222,8 +1227,8 @@ def generate_pdf(candidate_name, evaluator_email):
         y_line -= line_gap
 
     # PERFIL GENERAL
-    final_box_x = margin_left
-    final_box_w = W - margin_left - margin_right
+    final_box_x = 30
+    final_box_w = W - 30 - 30
     final_box_h = 110
     final_box_y_top = sliders_box_y_top - sliders_box_h - 15
 
@@ -1373,7 +1378,7 @@ def view_info():
         st.session_state.answers = {i: None for i in range(TOTAL_QUESTIONS)}
         st.session_state.already_sent = False
 
-        # INICIO DEL TEMPORIZADOR GLOBAL
+        # INICIO DEL TEMPORIZADOR GLOBAL (una sola vez aquí)
         st.session_state.test_start_time = datetime.now()
 
         # reset antitrampas
@@ -1396,14 +1401,14 @@ def view_test():
     if st.session_state.stage == "done":
         st.rerun()
 
-    # inyectar JS que marca forfeit cuando la pestaña pierde foco / se minimiza / cambia
+    # inyectar JS que marca forfeit cuando la pestaña pierde foco / etc.
     js_focus_guard()
 
     q_idx = st.session_state.current_q
     q = QUESTIONS[q_idx]
     progreso = (q_idx + 1) / TOTAL_QUESTIONS
 
-    # tiempo restante
+    # tiempo restante real (según reloj, no según pregunta)
     sec_left = get_time_left_sec()
     time_str = format_mm_ss(sec_left)
 
@@ -1421,10 +1426,7 @@ def view_test():
         timer_fg = "#fff"
         pulse_anim = "pulseBlue"
 
-    # TIMER FLOTANTE
-    # Ajuste solicitado:
-    # - Mostrarlo en la mitad de la pantalla (verticalmente centro-ish en el costado derecho).
-    #   Usamos top:50vh y translateY(-50%) para centrarlo visualmente.
+    # TIMER flotante mitad de pantalla derecha
     st.markdown(
         f"""
         <style>
@@ -1590,11 +1592,10 @@ if st.session_state.stage == "info":
     view_info()
 
 elif st.session_state.stage == "test":
-    # si por alguna razón no hay hora de inicio (ej: refresh duro antes de presionar el botón):
-    if st.session_state.test_start_time is None:
-        st.session_state.test_start_time = datetime.now()
+    # IMPORTANTE: ya no volvemos a resetear test_start_time aquí.
+    # Así evitamos que el cronómetro "reinicie" y parezca que baja sólo al cambiar pregunta.
 
-    # si ya contestó todas
+    # si por alguna razón ya contestó todas:
     if st.session_state.current_q >= TOTAL_QUESTIONS:
         finalize_and_send()
         st.session_state.stage = "done"
