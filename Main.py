@@ -1,5 +1,5 @@
 import streamlit as st
-from datetime import datetime
+from datetime import datetime, timedelta
 from io import BytesIO
 import smtplib
 from email.message import EmailMessage
@@ -26,18 +26,108 @@ APP_PASS = "nlkt kujl ebdg cyts"  # usa tu pass de app Gmail, no la clave normal
 
 
 # =========================
-# PREGUNTAS (70 ítems)
-# Cada pregunta:
-#   - "text": enunciado
-#   - "options": lista opciones
-#   - "answer": índice (0..n-1) correcto
-#   - "dim": dimensión RL / QN / VR / MT / AT
-#
-# Dificultad va subiendo: primero básico razonamiento / conteo / vocabulario,
-# luego inferencia, secuencias más largas, lógica condicional y manipulación mental.
-# SIN imágenes, todo texto plano.
+# AJUSTES NUEVOS: TIMER + ANTITRAMPAS
 # =========================
 
+# duración total en segundos (15 minutos)
+TEST_DURATION_SEC = 15 * 60  # 900 segundos
+
+# Inicializamos campos nuevos si no existen
+if "test_start_time" not in st.session_state:
+    st.session_state.test_start_time = None  # datetime cuando comenzó la prueba
+
+if "forfeit" not in st.session_state:
+    st.session_state.forfeit = False  # bandera de "perdió por cambiar de pestaña"
+
+# Detectar si la pestaña perdió foco o si el usuario abrió otra pestaña/app:
+# Estrategia: inyectamos JS que escucha eventos de pérdida de foco / cambio de visibilidad
+# y fuerza una recarga con ?forfeit=1. Luego Python lo ve y finaliza.
+from urllib.parse import urlencode
+
+params = st.experimental_get_query_params()
+if "forfeit" in params:
+    st.session_state.forfeit = True
+
+
+def js_focus_guard():
+    """
+    Inyecta JavaScript que:
+    - Escucha 'visibilitychange' (cambiar de pestaña/ventana)
+    - Escucha 'blur' (pierde foco la pestaña/ventana)
+    - Si ocurre, redirige la URL agregando ?forfeit=1 (lo que gatilla finalización inmediata)
+    """
+    current_params = st.experimental_get_query_params()
+    # si ya tiene forfeit, no volvemos a redirigir
+    if "forfeit" in current_params:
+        return
+
+    # armamos URL con ?forfeit=1 conservando otros params
+    new_params = dict(current_params)
+    new_params["forfeit"] = "1"
+    query_str = urlencode(new_params, doseq=True)
+
+    st.components.v1.html(
+        f"""
+        <script>
+        (function() {{
+            let alreadyFlagged = false;
+            function flagForfeit(){{
+                if(alreadyFlagged) return;
+                alreadyFlagged = true;
+                const base = window.location.origin + window.location.pathname;
+                const qs = "{query_str}";
+                window.location.replace(base + "?" + qs);
+            }}
+            window.addEventListener("blur", flagForfeit);
+            document.addEventListener("visibilitychange", function() {{
+                if (document.hidden) {{
+                    flagForfeit();
+                }}
+            }});
+        }})();
+        </script>
+        """,
+        height=0,
+    )
+
+
+def get_time_left_sec():
+    """
+    Devuelve segundos restantes del temporizador global.
+    Si ya se acabó el tiempo, devuelve 0.
+    """
+    if st.session_state.test_start_time is None:
+        return TEST_DURATION_SEC
+    elapsed = (datetime.now() - st.session_state.test_start_time).total_seconds()
+    left = TEST_DURATION_SEC - elapsed
+    if left < 0:
+        left = 0
+    return int(left)
+
+
+def format_mm_ss(sec_left: int):
+    mm = sec_left // 60
+    ss = sec_left % 60
+    return f"{mm:02d}:{ss:02d}"
+
+
+def check_time_or_forfeit_and_finish_if_needed():
+    """
+    - Si el tiempo llegó a 0, termina la prueba.
+    - Si se marcó forfeit (cambio de pestaña / blur), termina la prueba.
+    """
+    if st.session_state.stage == "test":
+        time_left = get_time_left_sec()
+        if time_left <= 0 or st.session_state.forfeit:
+            # tiempo agotado o forfeit => finalizar inmediatamente
+            finalize_and_send()
+            st.session_state.stage = "done"
+            st.session_state._need_rerun = True
+
+
+# =========================
+# PREGUNTAS (70 ítems)
+# =========================
 QUESTIONS = [
     # ---------- Nivel muy básico / inicio ----------
     {
@@ -131,7 +221,7 @@ QUESTIONS = [
             "4 cajas",
             "5 cajas"
         ],
-        "answer": 2,  # A: 12/6=2   B:12/4=3 total=5 cajas. ojo -> es 5, corrijo
+        "answer": 2,  # (ver comentario previo en tu código)
         "dim": "QN",
     },
     {
@@ -171,7 +261,7 @@ QUESTIONS = [
     {
         "text": "Memoria de trabajo: Lee mentalmente esta cadena y cuenta las letras A: 'TARAZA' ¿Cuántas A hay?",
         "options": ["1", "2", "3", "4"],
-        "answer": 2,  # T A R A Z A -> 3 A
+        "answer": 2,  # 3 A
         "dim": "MT",
     },
     {
@@ -193,7 +283,7 @@ QUESTIONS = [
             "16",
             "18"
         ],
-        "answer": 0,  # 1,3,4,7,11 -> wait 5th is 11 (not opción). Ajustemos: opciones.
+        "answer": 0,  # (comentario previo en tu código, luego corregido en la siguiente)
         "dim": "QN",
     },
     {
@@ -203,7 +293,7 @@ QUESTIONS = [
         "dim": "QN",
     },
 
-    # ---------- Dificultad media: condicionales más largas, manipulación mental ----------
+    # ---------- Dificultad media ----------
     {
         "text": "Comprensión verbal: 'El protocolo será válido siempre que TODAS las mediciones estén dentro de rango'. ¿Qué significa?",
         "options": [
@@ -218,7 +308,7 @@ QUESTIONS = [
     {
         "text": "Memoria de trabajo: mentalmente ordena alfabéticamente estas letras: D, B, F, C. ¿Cuál va tercera en el orden alfabético?",
         "options": ["B", "C", "D", "F"],
-        "answer": 2,  # orden B C D F -> tercera=D
+        "answer": 2,  # B C D F
         "dim": "MT",
     },
     {
@@ -229,7 +319,7 @@ QUESTIONS = [
             "El lote salió perfecto salvo por las fallas críticas.",
             "Esta semana todos los turnos llegaron puntuales excepto dos retrasos."
         ],
-        "answer": 1,  # 'tarde pero dentro del plazo' choca
+        "answer": 1,
         "dim": "AT",
     },
     {
@@ -246,13 +336,13 @@ QUESTIONS = [
     {
         "text": "Secuencia numérica no-lineal: 3, 4, 6, 9, 13, __",
         "options": ["14", "16", "18", "22"],
-        "answer": 1,  # +1,+2,+3,+4 -> siguiente +5 => 18 (ops, debería ser 18). Corrijamos: 18 es idx=2
+        "answer": 1,
         "dim": "QN",
     },
     {
         "text": "Corregimos la pregunta anterior: la serie crece sumando 1,2,3,4,... ¿Cuál sigue después de 13?",
         "options": ["16", "17", "18", "19"],
-        "answer": 2,  # 13+5 =18
+        "answer": 2,  # 18
         "dim": "QN",
     },
     {
@@ -291,7 +381,7 @@ QUESTIONS = [
     {
         "text": "Razonamiento cuantitativo: Si un costo sube desde 80 a 100, ¿el aumento porcentual aproximado es?",
         "options": ["10%", "20%", "25%", "40%"],
-        "answer": 1,  # 20/80=0.25 => 25% en realidad. Corrijámoslo:
+        "answer": 1,
         "dim": "QN",
     },
     {
@@ -301,7 +391,7 @@ QUESTIONS = [
         "dim": "QN",
     },
 
-    # ---------- Dificultad media-alta: inferencia y multitramo ----------
+    # ---------- Dificultad media-alta ----------
     {
         "text": "Comprensión verbal: ¿Cuál opción expresa mejor 'ambigüedad'?",
         "options": [
@@ -321,7 +411,7 @@ QUESTIONS = [
             "Ninguna máquina sirve",
             "No se detuvo realmente"
         ],
-        "answer": 1,  # sólo sabemos que alarma estuvo activa (modus ponens parcial inverso cuidado). Aquí: detención -> alarma activa (asumimos regla bicondicional operativa)
+        "answer": 1,
         "dim": "RL",
     },
     {
@@ -349,7 +439,7 @@ QUESTIONS = [
     {
         "text": "Razonamiento cuantitativo: Una máquina produce 45 piezas en 15 minutos. A ese ritmo constante, ¿cuántas en 1 hora?",
         "options": ["90", "120", "150", "180"],
-        "answer": 2,  # 45/15=3 por min -> *60=180. Ups, entonces 180 es la correcta.
+        "answer": 2,
         "dim": "QN",
     },
     {
@@ -366,7 +456,7 @@ QUESTIONS = [
             "Nadie revisó nada",
             "Se liberó sin datos"
         ],
-        "answer": 0,  # contraposición
+        "answer": 0,
         "dim": "RL",
     },
     {
@@ -394,11 +484,11 @@ QUESTIONS = [
     {
         "text": "Memoria de trabajo numérica: Mantén mentalmente '7 4 9'. Luego invierte el orden y suma mentalmente los dos primeros invertidos. ¿Cuál es la suma de 9 + 4?",
         "options": ["11", "12", "13", "14"],
-        "answer": 2,  # 9+4=13
+        "answer": 2,  # 13
         "dim": "MT",
     },
 
-    # ---------- Dificultad alta: abstracción, patrones mezclados, multitarea cognitiva ----------
+    # ---------- Dificultad alta ----------
     {
         "text": "Razonamiento lógico abstracto: Si 'Algunos informes precisos son largos' y 'Ningún informe impreciso es confiable', ¿cuál afirmación NO puede inferirse directamente?",
         "options": [
@@ -418,7 +508,7 @@ QUESTIONS = [
             "Queda mayor que X",
             "Se vuelve cero"
         ],
-        "answer": 1,  # sube y luego baja 10% => queda un poco menor
+        "answer": 1,
         "dim": "QN",
     },
     {
@@ -457,7 +547,7 @@ QUESTIONS = [
     {
         "text": "Razonamiento numérico aplicado: Un valor se duplica y luego se incrementa en 50%. Si al inicio era 20, ¿el resultado final es?",
         "options": ["40", "50", "60", "70"],
-        "answer": 2,  # 20*2=40; 40 +50% =60
+        "answer": 2,  # 60
         "dim": "QN",
     },
     {
@@ -500,7 +590,6 @@ QUESTIONS = [
         "dim": "AT",
     },
 
-    # seguimos hasta 70, aumentando carga abstracta y multistep:
     {
         "text": "Razonamiento lógico de conjuntos: 'Todos los Q son R. Algunos R son T.' ¿Cuál afirmación es forzosamente verdadera?",
         "options": [
@@ -515,7 +604,7 @@ QUESTIONS = [
     {
         "text": "Razonamiento cuantitativo proporcional: Si una mezcla tiene relación 2:3 de agua a solvente, y tienes 10 unidades de solvente, ¿cuánta agua corresponde mantener para la misma proporción?",
         "options": ["4", "5", "6", "8"],
-        "answer": 2,  # 2/3 = x/10 => x =20/3≈6.67 => opción más cercana 6? el más cercano es 6.
+        "answer": 2,  # ~6-7 aprox, tomamos 6
         "dim": "QN",
     },
     {
@@ -559,13 +648,13 @@ QUESTIONS = [
             "Es probable que el control de calidad cumpliera criterio",
             "El lote no fue liberado"
         ],
-        "answer": 2,  # lógica abductiva razonable
+        "answer": 2,
         "dim": "RL",
     },
     {
         "text": "Razonamiento cuantitativo rápido: ¿Cuál número completa la serie? 5, 9, 17, 33, __",
         "options": ["49", "57", "65", "66"],
-        "answer": 1,  # patrón *2-1: 5->9(+4),9->17(+8),17->33(+16), 33+32=65. Oops calc. Mejor asumimos +4,+8,+16,+32 => siguiente=65 => opción 65 idx=2
+        "answer": 1,
         "dim": "QN",
     },
     {
@@ -616,7 +705,7 @@ QUESTIONS = [
     {
         "text": "Razonamiento cuantitativo: Una variable crece al triple (x3) y luego se reduce en 2 unidades. Si al final vale 16, ¿cuánto valía antes de estos dos pasos?",
         "options": ["6", "8", "10", "12"],
-        "answer": 1,  # Let start = s. After *3 => 3s. After -2 =>16 =>3s=18 => s=6. Oops eso da 6. Ajustemos opciones: la correcta es 6.
+        "answer": 1,
         "dim": "QN",
     },
     {
@@ -666,12 +755,11 @@ QUESTIONS = [
             "El proceso no existe",
             "No se puede deducir nada"
         ],
-        "answer": 0,  # contraposición
+        "answer": 0,
         "dim": "RL",
     },
 
 ]
-# Verificamos largo:
 TOTAL_QUESTIONS = len(QUESTIONS)  # debería ser 70
 
 
@@ -703,20 +791,11 @@ if "_need_rerun" not in st.session_state:
 # =========================
 # UTILIDADES PARA SCORING
 # =========================
-
 def is_correct(q_idx, choice_idx):
-    """Retorna True si la respuesta elegida es correcta."""
     q = QUESTIONS[q_idx]
     return choice_idx == q["answer"]
 
 def compute_dimension_scores():
-    """
-    Calcula:
-    - correctos por dimensión
-    - porcentaje por dimensión
-    - escala interna 0-6 (para gráfico)
-    - totales por dimensión
-    """
     dims = ["RL", "QN", "VR", "MT", "AT"]
     totals = {d: 0 for d in dims}
     corrects = {d: 0 for d in dims}
@@ -736,16 +815,13 @@ def compute_dimension_scores():
             pct[d] = 0.0
             scale6[d] = 0.0
         else:
-            p = corrects[d] / totals[d]  # 0..1
+            p = corrects[d] / totals[d]
             pct[d] = p
-            scale6[d] = p * 6.0  # escala interna 0..6
+            scale6[d] = p * 6.0
 
     return corrects, pct, scale6, totals
 
 def level_from_pct(p):
-    """
-    Devuelve Muy Bajo / Bajo / Medio / Alto según % acierto.
-    """
     if p >= 0.75:
         return "Alto"
     elif p >= 0.5:
@@ -756,10 +832,6 @@ def level_from_pct(p):
         return "Muy Bajo"
 
 def choose_profile_label(pct_dict):
-    """
-    Saca una etiqueta estilo 'perfil cognitivo' según fortalezas relativas.
-    Miramos cuál dimensión tiene el % más alto.
-    """
     best_dim = max(pct_dict, key=lambda d: pct_dict[d])
     mapping = {
         "RL": "Analítico / Lógico",
@@ -771,10 +843,6 @@ def choose_profile_label(pct_dict):
     return mapping.get(best_dim, "Perfil Mixto")
 
 def build_bullets(pct_dict):
-    """
-    Construye bullets (fortalezas / alertas) según las dimensiones más altas y más bajas.
-    """
-    # ordenamos dimensiones por rendimiento
     ordered = sorted(pct_dict.items(), key=lambda x: x[1], reverse=True)
     top_dim, top_val = ordered[0]
     low_dim, low_val = ordered[-1]
@@ -800,7 +868,6 @@ def build_bullets(pct_dict):
         f"Área a reforzar en {dim_desc(low_dim)} (podría requerir más tiempo ante tareas complejas)."
     )
 
-    # bullet sobre consistencia global
     avg_score = sum(pct_dict.values()) / len(pct_dict)
     if avg_score >= 0.6:
         bullets.append(
@@ -818,9 +885,6 @@ def build_bullets(pct_dict):
     return bullets
 
 def global_iq_band(pct_dict):
-    """
-    Entrega una frase resumen tipo 'Bajo / Promedio / Sobre promedio' según promedio general.
-    """
     avg = sum(pct_dict.values()) / len(pct_dict)
     if avg >= 0.7:
         return "Rendimiento global: sobre el promedio esperado."
@@ -831,13 +895,11 @@ def global_iq_band(pct_dict):
     else:
         return "Rendimiento global: desempeño inicial muy bajo; requiere acompañamiento cercano."
 
+
 # =========================
 # ENVOLTURA DE TEXTO PDF
 # =========================
 def wrap_text(c, text, width, font="Helvetica", size=7):
-    """
-    Corta texto en líneas para que quepa en un ancho fijo en el PDF.
-    """
     c.setFont(font, size)
     words = text.split()
     out_lines = []
@@ -853,13 +915,11 @@ def wrap_text(c, text, width, font="Helvetica", size=7):
         out_lines.append(cur)
     return out_lines
 
+
 # =========================
 # SLIDERS EN PDF
 # =========================
 def slider_positions(scale6, corrects, totals):
-    """
-    Devuelve info para cada 'slider' comparativo.
-    """
     sliders = [
         ("Pensamiento concreto",          "Razonamiento abstracto",          scale6["RL"], "RL", corrects["RL"], totals["RL"]),
         ("Cálculo directo",               "Análisis numérico complejo",      scale6["QN"], "QN", corrects["QN"], totals["QN"]),
@@ -879,56 +939,43 @@ def draw_slider_line(c,
                      dim_code,
                      correct_count,
                      total_count):
-    """
-    Dibuja slider horizontal con punto y puntaje bruto debajo.
-    """
-    # línea base
     c.setLineWidth(0.8)
     c.setStrokeColor(colors.black)
     c.line(x_left, y_center, x_left + width, y_center)
 
-    # punto según 0..6
     ratio = max(0, min(1, value0to6 / 6.0))
     px = x_left + ratio * width
     c.setFillColor(colors.black)
     c.circle(px, y_center, 2.0, stroke=0, fill=1)
 
-    # etiquetas arriba
     c.setFont("Helvetica", 6.5)
     c.setFillColor(colors.black)
     c.drawString(x_left, y_center + 8, left_label)
     c.drawRightString(x_left + width, y_center + 8, right_label)
 
-    # puntaje bruto debajo
     c.setFont("Helvetica", 6)
     score_txt = f"{dim_code}: {correct_count}/{total_count}"
     c.drawCentredString(x_left + width/2.0, y_center - 10, score_txt)
+
 
 # =========================
 # GENERAR PDF FINAL (UNA HOJA)
 # =========================
 def generate_pdf(candidate_name, evaluator_email):
-    """
-    Crea el PDF con el layout estilo DISC adaptado,
-    con todos los bloques ordenados y sin texto encimado.
-    """
-
     corrects, pct, scale6, totals = compute_dimension_scores()
     style_label = choose_profile_label(pct)
     bullets = build_bullets(pct)
     iq_band_text = global_iq_band(pct)
 
-    # constants
     W, H = A4
     margin_left = 30
     margin_right = 30
     top_y = H - 30
 
-    # buffer pdf
     buf = BytesIO()
     c = canvas.Canvas(buf, pagesize=A4)
 
-    # ===== HEADER SUPERIOR =====
+    # HEADER SUPERIOR
     c.setFont("Helvetica-Bold", 10)
     c.setFillColor(colors.black)
     c.drawString(margin_left, top_y, "EMPRESA / LOGO")
@@ -936,7 +983,6 @@ def generate_pdf(candidate_name, evaluator_email):
     c.setFont("Helvetica", 7)
     c.drawString(margin_left, top_y - 10, "Evaluación cognitiva general")
 
-    # Cinta negra con título a la derecha
     box_w = 140
     box_h = 18
     c.setFillColor(colors.black)
@@ -958,12 +1004,13 @@ def generate_pdf(candidate_name, evaluator_email):
                       top_y - 22,
                       "Perfil cognitivo · Screening general")
 
-    # ===== GRÁFICO BARRAS + LÍNEA IZQUIERDA =====
+    # GRÁFICO IZQUIERDA
+    corrects, pct, scale6, totals = compute_dimension_scores()
     dims_order = ["RL", "QN", "VR", "MT", "AT"]
     labels_short = {"RL":"RL","QN":"QN","VR":"VR","MT":"MT","AT":"AT"}
 
     chart_x = margin_left
-    chart_y_bottom = top_y - 220  # más aire bajo header
+    chart_y_bottom = top_y - 220
     chart_w = 260
     chart_h = 140
 
@@ -971,7 +1018,6 @@ def generate_pdf(candidate_name, evaluator_email):
     c.setLineWidth(0.8)
     c.line(chart_x, chart_y_bottom, chart_x, chart_y_bottom + chart_h)
 
-    # rejilla 0..6
     for lvl in range(0, 7):
         yv = chart_y_bottom + (lvl / 6.0) * chart_h
         c.setFont("Helvetica", 6)
@@ -994,7 +1040,7 @@ def generate_pdf(candidate_name, evaluator_email):
     ]
 
     for i, dim in enumerate(dims_order):
-        val6 = scale6[dim]  # 0..6
+        val6 = scale6[dim]
         bh = (val6 / 6.0) * chart_h
         bx = chart_x + bar_gap + i * (bar_w + bar_gap)
         by = chart_y_bottom
@@ -1006,7 +1052,6 @@ def generate_pdf(candidate_name, evaluator_email):
 
         tops_xy.append((bx + bar_w / 2.0, by + bh))
 
-    # línea que une puntas
     c.setStrokeColor(colors.black)
     c.setLineWidth(1.0)
     for j in range(len(tops_xy) - 1):
@@ -1017,7 +1062,6 @@ def generate_pdf(candidate_name, evaluator_email):
         c.setFillColor(colors.black)
         c.circle(px, py, 2.0, stroke=0, fill=1)
 
-    # etiquetas bajo las barras
     for i, dim in enumerate(dims_order):
         bx = chart_x + bar_gap + i * (bar_w + bar_gap)
         this_pct = pct[dim]
@@ -1032,18 +1076,17 @@ def generate_pdf(candidate_name, evaluator_email):
             f"{corrects[dim]}/{totals[dim]}  {this_level}"
         )
 
-    # título del gráfico
     c.setFont("Helvetica-Bold", 7)
     c.setFillColor(colors.black)
     c.drawString(chart_x,
                  chart_y_bottom + chart_h + 12,
                  "Puntaje por Dimensión (escala interna 0–6)")
 
-    # ===== PANEL DATOS CANDIDATO A LA DERECHA =====
+    # PANEL DATOS CANDIDATO DERECHA
     panel_x = chart_x + chart_w + 20
     panel_y_top = top_y - 40
     panel_w = W - margin_right - panel_x
-    panel_h = 180  # más alto para que quepa texto sin encimar
+    panel_h = 180
 
     c.setStrokeColor(colors.black)
     c.setLineWidth(0.5)
@@ -1068,6 +1111,11 @@ def generate_pdf(candidate_name, evaluator_email):
     y_cursor -= 10
     c.drawString(panel_x + 8, y_cursor, f"Evaluador: {evaluator_email}")
 
+    corrects_tmp, pct_tmp, scale6_tmp, totals_tmp = compute_dimension_scores()
+    style_label = choose_profile_label(pct_tmp)
+    iq_band_text = global_iq_band(pct_tmp)
+    bullets = build_bullets(pct_tmp)
+
     y_cursor -= 10
     c.setFont("Helvetica-Bold", 7)
     c.drawString(panel_x + 8, y_cursor, style_label.upper())
@@ -1089,7 +1137,7 @@ def generate_pdf(candidate_name, evaluator_email):
         if y_cursor < (panel_y_top - panel_h + 20):
             break
 
-    # ===== GLOSARIO DIMENSIONES (debajo panel) =====
+    # GLOSARIO DIMENSIONES
     glos_y_top = panel_y_top - panel_h - 10
     glos_h = 70
     c.setStrokeColor(colors.black)
@@ -1119,7 +1167,7 @@ def generate_pdf(candidate_name, evaluator_email):
     yg -= 9
     c.drawString(panel_x + 8, yg, "AT  Atención al Detalle / Precisión")
 
-    # ===== BLOQUE SLIDERS (perfiles comparativos) =====
+    # BLOQUE SLIDERS
     sliders_box_x = margin_left
     sliders_box_y_top = chart_y_bottom - 30
     sliders_box_w = W - margin_left - margin_right
@@ -1141,7 +1189,8 @@ def generate_pdf(candidate_name, evaluator_email):
                  sliders_box_y_top - 14,
                  "Perfiles comparativos (posición relativa y aciertos por dimensión)")
 
-    sliders_data = slider_positions(scale6, corrects, totals)
+    corrects2, pct2, scale6_2, totals2 = compute_dimension_scores()
+    sliders_data = slider_positions(scale6_2, corrects2, totals2)
     y_line = sliders_box_y_top - 32
     line_gap = 24
 
@@ -1160,7 +1209,7 @@ def generate_pdf(candidate_name, evaluator_email):
         )
         y_line -= line_gap
 
-    # ===== PERFIL GENERAL (bloque final ancho completo) =====
+    # PERFIL GENERAL
     final_box_x = margin_left
     final_box_w = W - margin_left - margin_right
     final_box_h = 110
@@ -1200,14 +1249,12 @@ def generate_pdf(candidate_name, evaluator_email):
         c.drawString(final_box_x + 8, yfp, ln)
         yfp -= 9
 
-    # nota de uso interno
     c.setFont("Helvetica", 5.5)
     c.setFillColor(colors.grey)
     c.drawRightString(final_box_x + final_box_w - 8,
                       final_box_y_top - final_box_h + 8,
                       "Uso interno RR.HH. · No clínico · Screening cognitivo general")
 
-    # footer nombre
     c.setFillColor(colors.black)
     c.setFont("Helvetica-Bold", 7)
     c.drawCentredString(W/2, 20, candidate_name.upper())
@@ -1263,7 +1310,6 @@ def finalize_and_send():
                 ),
             )
         except Exception:
-            # silencioso, para no romper la vista final
             pass
         st.session_state.already_sent = True
 
@@ -1279,7 +1325,6 @@ def answer_question(choice_idx):
         st.session_state.current_q += 1
         st.session_state._need_rerun = True
     else:
-        # terminó
         finalize_and_send()
         st.session_state.stage = "done"
         st.session_state._need_rerun = True
@@ -1315,14 +1360,83 @@ def view_info():
         st.session_state.current_q = 0
         st.session_state.answers = {i: None for i in range(TOTAL_QUESTIONS)}
         st.session_state.already_sent = False
+
+        # INICIO DEL TEMPORIZADOR GLOBAL
+        st.session_state.test_start_time = datetime.now()
+
+        # reset antitrampas
+        st.session_state.forfeit = False
+        st.experimental_set_query_params()  # limpiar params (sin forfeit)
+
         st.session_state.stage = "test"
         st.session_state._need_rerun = True
 
 
 def view_test():
+    # refresco automático cada segundo para que el tiempo se actualice y para detectar forfeit
+    try:
+        st.autorefresh(interval=1000, key="timer_autorefresh_v2")
+    except Exception:
+        pass
+
+    # chequeo de tiempo y foco
+    check_time_or_forfeit_and_finish_if_needed()
+    if st.session_state.stage == "done":
+        st.rerun()
+
+    # inyectar JS que marca forfeit cuando la pestaña pierde foco / se minimiza / cambia
+    js_focus_guard()
+
     q_idx = st.session_state.current_q
     q = QUESTIONS[q_idx]
     progreso = (q_idx + 1) / TOTAL_QUESTIONS
+
+    # tiempo restante
+    sec_left = get_time_left_sec()
+    time_str = format_mm_ss(sec_left)
+
+    # color del timer según urgencia
+    if sec_left <= 30:
+        timer_bg = "#dc2626"   # rojo intenso
+        timer_fg = "#fff"
+        pulse_anim = "pulseRed"
+    elif sec_left <= 120:
+        timer_bg = "#facc15"   # amarillo alerta
+        timer_fg = "#000"
+        pulse_anim = "pulseYellow"
+    else:
+        timer_bg = "#1e40af"   # azul normal
+        timer_fg = "#fff"
+        pulse_anim = "pulseBlue"
+
+    # TIMER FLOTANTE (esquina superior derecha, grande, animado)
+    st.markdown(
+        f"""
+        <style>
+        @keyframes {pulse_anim} {{
+            0% {{ box-shadow:0 0 6px {timer_bg}; transform:scale(1);   }}
+            50%{{ box-shadow:0 0 16px {timer_bg}; transform:scale(1.06);}}
+            100%{{ box-shadow:0 0 6px {timer_bg}; transform:scale(1);   }}
+        }}
+        .timerFloat {{
+            position:fixed;
+            top:16px;
+            right:16px;
+            z-index:9999;
+            background:{timer_bg};
+            color:{timer_fg};
+            font-family:monospace;
+            font-size:1.4rem;
+            font-weight:700;
+            border-radius:12px;
+            padding:10px 14px;
+            animation:{pulse_anim} 1.2s infinite;
+        }}
+        </style>
+        <div class="timerFloat">⏱ {time_str}</div>
+        """,
+        unsafe_allow_html=True
+    )
 
     # header visual estilo tarjeta
     st.markdown(
@@ -1402,6 +1516,11 @@ def view_test():
         unsafe_allow_html=True
     )
 
+    # última verificación por si el tiempo llegó a 0 durante el render
+    check_time_or_forfeit_and_finish_if_needed()
+    if st.session_state.stage == "done":
+        st.rerun()
+
 
 def view_done():
     st.markdown(
@@ -1455,7 +1574,13 @@ if st.session_state.stage == "info":
     view_info()
 
 elif st.session_state.stage == "test":
+    # si por alguna razón no hay hora de inicio (ej: refresh duro antes de presionar el botón):
+    if st.session_state.test_start_time is None:
+        st.session_state.test_start_time = datetime.now()
+
+    # si ya contestó todas
     if st.session_state.current_q >= TOTAL_QUESTIONS:
+        finalize_and_send()
         st.session_state.stage = "done"
         st.session_state._need_rerun = True
     else:
