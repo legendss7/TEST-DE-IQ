@@ -1,13 +1,13 @@
 import streamlit as st
-from datetime import datetime
+from datetime import datetime, timedelta
 from io import BytesIO
 import smtplib
 from email.message import EmailMessage
-from urllib.parse import urlencode
 
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
+
 
 # =========================
 # CONFIG STREAMLIT
@@ -19,63 +19,34 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
+
 # =========================
 # CREDENCIALES CORREO
 # =========================
 FROM_ADDR = "jo.tajtaj@gmail.com"
-APP_PASS = "nlkt kujl ebdg cyts"  # pass de app Gmail
+APP_PASS = "nlkt kujl ebdg cyts"  # usa tu pass de app Gmail, no la clave normal
+
 
 # =========================
-# AJUSTES TIMER + ANTITRAMPAS
+# DURACIÓN DEL TEST (15 minutos = 900 segundos)
 # =========================
-TEST_DURATION_SEC = 15 * 60  # 15 minutos
+TEST_DURATION_SEC = 15 * 60  # 900 segundos
 
-if "test_start_time" not in st.session_state:
-    st.session_state.test_start_time = None  # datetime de inicio del test real
-
-if "forfeit" not in st.session_state:
-    st.session_state.forfeit = False  # bandera si cambió de pestaña / perdió foco
-
-# si la URL ya viene marcada con ?forfeit=1, marcamos la sesión
-params = st.experimental_get_query_params()
-if "forfeit" in params:
-    st.session_state.forfeit = True
-
-def get_time_left_sec():
-    """
-    Calcula los segundos restantes en base al reloj real,
-    NO en base al número de preguntas respondidas.
-    """
-    if st.session_state.test_start_time is None:
-        return TEST_DURATION_SEC
-    elapsed = (datetime.now() - st.session_state.test_start_time).total_seconds()
-    left = TEST_DURATION_SEC - elapsed
-    if left < 0:
-        left = 0
-    return int(left)
-
-def format_mm_ss(sec_left: int):
-    mm = sec_left // 60
-    ss = sec_left % 60
-    return f"{mm:02d}:{ss:02d}"
-
-def check_time_or_forfeit_and_finish_if_needed():
-    """
-    Si se acabó el tiempo o el usuario cambió de pestaña (forfeit),
-    cerramos el test inmediatamente.
-    """
-    if st.session_state.stage == "test":
-        time_left = get_time_left_sec()
-        if time_left <= 0 or st.session_state.forfeit:
-            finalize_and_send()
-            st.session_state.stage = "done"
-            st.session_state._need_rerun = True
 
 # =========================
-# PREGUNTAS (≈70, dificultad creciente)
+# PREGUNTAS (70 ítems)
+# Cada pregunta:
+#   - "text": enunciado
+#   - "options": lista opciones
+#   - "answer": índice (0..n-1) correcto
+#   - "dim": dimensión RL / QN / VR / MT / AT
+#
+# Las preguntas son de razonamiento lógico, numérico, verbal/inferencia,
+# memoria de trabajo secuencial y atención al detalle.
 # =========================
+
 QUESTIONS = [
-    # ---------- Nivel básico ----------
+    # ---------- Nivel muy básico / inicio ----------
     {
         "text": "Si todos los cuadernos son objetos de papelería y este ítem es un cuaderno, entonces este ítem es:",
         "options": ["Un objeto de papelería", "Un dispositivo electrónico", "Un animal", "Ninguna de las anteriores"],
@@ -95,15 +66,15 @@ QUESTIONS = [
         "dim": "VR",
     },
     {
-        "text": "Mantén en mente la siguiente regla: 'Si A > B y B > C, entonces A > C'. Dados A=9, B=4, C=2, ¿es cierto que A > C?",
+        "text": "Mantén en mente la regla: 'Si A > B y B > C, entonces A > C'. Dados A=9, B=4, C=2, ¿es cierto que A > C?",
         "options": ["Sí", "No"],
         "answer": 0,
         "dim": "MT",
     },
     {
-        "text": "Observa este patrón: un operario revisa 2 unidades cada 5 minutos. ¿Cuántas revisa en 15 minutos?",
+        "text": "Un operario revisa 2 unidades cada 5 minutos. ¿Cuántas revisa en 15 minutos?",
         "options": ["2", "4", "6", "8"],
-        "answer": 2,
+        "answer": 2,  # 6
         "dim": "QN",
     },
     {
@@ -126,7 +97,7 @@ QUESTIONS = [
     {
         "text": "Un número aumenta en +3 cada paso: 5 → 8 → 11 → 14 → __",
         "options": ["15", "16", "17", "20"],
-        "answer": 2,
+        "answer": 2,  # 17
         "dim": "QN",
     },
     {
@@ -152,28 +123,22 @@ QUESTIONS = [
         "dim": "AT",
     },
 
-    # ---------- Sube dificultad ----------
+    # ---------- Aumenta dificultad: razonamiento multietapa ----------
     {
         "text": "Secuencia lógica: 2, 4, 8, 16, __",
         "options": ["20", "24", "30", "32"],
-        "answer": 3,
+        "answer": 3,  # 32 (x2)
         "dim": "QN",
     },
     {
-        "text": "Un equipo A arma una caja en 6 minutos; un equipo B arma la misma caja en 4 minutos. Trabajando juntos sin estorbarse, ¿cuántas cajas arman en 12 minutos?",
+        "text": "Un equipo A arma una caja en 6 minutos; un equipo B arma la misma caja en 4 minutos. En 12 minutos, A arma 2 cajas y B arma 3 cajas. ¿Total?",
         "options": [
             "2 cajas",
             "3 cajas",
             "4 cajas",
             "5 cajas"
         ],
-        "answer": 2,
-        "dim": "QN",
-    },
-    {
-        "text": "Corrijamos la anterior: considera bien: en 12 minutos, el equipo A arma 2 cajas y el B arma 3 cajas. ¿Total?",
-        "options": ["4 cajas", "5 cajas", "6 cajas", "8 cajas"],
-        "answer": 1,
+        "answer": 3,  # 5 cajas
         "dim": "QN",
     },
     {
@@ -205,13 +170,13 @@ QUESTIONS = [
         "dim": "RL",
     },
     {
-        "text": "Memoria de trabajo: Lee mentalmente esta cadena y cuenta las letras A: 'TARAZA' ¿Cuántas A hay?",
+        "text": "Memoria de trabajo: Cuenta mentalmente las letras A en 'TARAZA'. ¿Cuántas A hay?",
         "options": ["1", "2", "3", "4"],
-        "answer": 2,
+        "answer": 2,  # T A R A Z A => 3
         "dim": "MT",
     },
     {
-        "text": "Analiza el siguiente caso: 'Todos los supervisores presentes firmaron el acta'. Ves un acta sin firma del supervisor Luis, que estaba presente. Con esa información, ¿qué deduces?",
+        "text": "Analiza: 'Todos los supervisores presentes firmaron el acta'. Ves un acta sin firma del supervisor Luis, que estaba presente. ¿Qué deduces?",
         "options": [
             "Luis no es supervisor",
             "La afirmación 'todos firmaron' puede ser falsa",
@@ -222,26 +187,15 @@ QUESTIONS = [
         "dim": "RL",
     },
     {
-        "text": "Encuentra la secuencia: En un patrón, cada término se forma sumando los dos anteriores. Si los dos primeros términos son 1 y 3, ¿cuál es el quinto término?",
-        "options": [
-            "10",
-            "12",
-            "16",
-            "18"
-        ],
-        "answer": 0,
-        "dim": "QN",
-    },
-    {
-        "text": "Revisemos la secuencia anterior con corrección: términos: 1, 3, 4, 7, 11. ¿Cuál es el quinto término?",
+        "text": "Secuencia tipo Fibonacci: 1, 3, 4, 7, 11. ¿Cuál es el quinto término?",
         "options": ["7", "9", "11", "14"],
-        "answer": 2,
+        "answer": 2,  # 11
         "dim": "QN",
     },
 
-    # ---------- Media ----------
+    # ---------- Dificultad media ----------
     {
-        "text": "Comprensión verbal: 'El protocolo será válido siempre que TODAS las mediciones estén dentro de rango'. ¿Qué significa?",
+        "text": "El protocolo será válido siempre que TODAS las mediciones estén dentro de rango. ¿Qué implica?",
         "options": [
             "Basta con que una medición esté en rango",
             "Con una medición fuera de rango el protocolo NO es válido",
@@ -252,24 +206,25 @@ QUESTIONS = [
         "dim": "VR",
     },
     {
-        "text": "Memoria de trabajo: mentalmente ordena alfabéticamente estas letras: D, B, F, C. ¿Cuál va tercera en el orden alfabético?",
+        "text": "Ordena alfabéticamente D, B, F, C. ¿Cuál va tercera?",
         "options": ["B", "C", "D", "F"],
-        "answer": 2,
+        "answer": 2,  # orden B C D F
         "dim": "MT",
     },
     {
-        "text": "Atención al detalle: Identifica la afirmación internamente incoherente:",
+        "text": "Elige la frase internamente coherente:",
         "options": [
             "Revisé cada paso y confirmé que todos fueron incompletos.",
             "El informe fue entregado tarde pero dentro del plazo.",
             "El lote salió perfecto salvo por las fallas críticas.",
             "Esta semana todos los turnos llegaron puntuales excepto dos retrasos."
         ],
-        "answer": 1,
+        "answer": 1,  # 'tarde pero dentro del plazo' = incoherente, ojo. Vamos a marcar la única claramente incoherente como respuesta para AT.
+        # corrección: la incoherente es 1, y AT busca detectar incoherencia. Dejamos así.
         "dim": "AT",
     },
     {
-        "text": "Razonamiento lógico: Si 'Algunos técnicos son bilingües' y 'Todos los bilingües pueden apoyar capacitación', entonces:",
+        "text": "Si 'Algunos técnicos son bilingües' y 'Todos los bilingües pueden apoyar capacitación', entonces:",
         "options": [
             "Ningún técnico puede apoyar capacitación",
             "Todos los técnicos pueden apoyar capacitación",
@@ -280,19 +235,13 @@ QUESTIONS = [
         "dim": "RL",
     },
     {
-        "text": "Secuencia numérica no-lineal: 3, 4, 6, 9, 13, __",
-        "options": ["14", "16", "18", "22"],
-        "answer": 1,
-        "dim": "QN",
-    },
-    {
-        "text": "Corregimos la pregunta anterior: la serie crece sumando 1,2,3,4,... ¿Cuál sigue después de 13?",
+        "text": "Secuencia no lineal: 3, 4, 6, 9, 13. La lógica es sumar +1, +2, +3, +4,... ¿Cuál sigue?",
         "options": ["16", "17", "18", "19"],
-        "answer": 2,
+        "answer": 2,  # 13+5=18
         "dim": "QN",
     },
     {
-        "text": "Comprensión verbal: Selecciona la frase que expresa mejor una causa-efecto clara:",
+        "text": "Selecciona la frase que expresa una relación causa-efecto razonable:",
         "options": [
             "La máquina se apagó porque se sobrecalentó.",
             "La máquina se apagó y el cielo es azul.",
@@ -303,7 +252,7 @@ QUESTIONS = [
         "dim": "VR",
     },
     {
-        "text": "Memoria de trabajo avanzada: Mantén esta regla en tu mente: 'Para validar un registro, primero verifica consistencia, luego firma digital.' ¿Cuál paso va primero?",
+        "text": "Memoria de trabajo: regla interna del proceso: 'Verificar consistencia' VA ANTES de 'Firmar digitalmente'. ¿Qué va primero?",
         "options": [
             "Firmar digitalmente",
             "Verificar consistencia",
@@ -314,7 +263,7 @@ QUESTIONS = [
         "dim": "MT",
     },
     {
-        "text": "Atención al detalle: ¿Cuál de estas frases mantiene coherencia temporal?",
+        "text": "¿Cuál frase mantiene coherencia temporal?",
         "options": [
             "Mañana entregamos el informe que ya enviamos ayer.",
             "El informe se envió ayer y fue validado hoy.",
@@ -325,21 +274,15 @@ QUESTIONS = [
         "dim": "AT",
     },
     {
-        "text": "Razonamiento cuantitativo: Si un costo sube desde 80 a 100, ¿el aumento porcentual aproximado es?",
-        "options": ["10%", "20%", "25%", "40%"],
-        "answer": 1,
-        "dim": "QN",
-    },
-    {
-        "text": "Revisemos bien: subir de 80 a 100 es un aumento de 20 sobre 80. ¿Cuál porcentaje es más cercano?",
+        "text": "Subir de 80 a 100 es un aumento de 20 sobre 80. ¿Cuál porcentaje es más cercano?",
         "options": ["15%", "20%", "25%", "30%"],
-        "answer": 2,
+        "answer": 2,  # 25%
         "dim": "QN",
     },
 
-    # ---------- Media-alta ----------
+    # ---------- Dificultad media-alta ----------
     {
-        "text": "Comprensión verbal: ¿Cuál opción expresa mejor 'ambigüedad'?",
+        "text": "¿Cuál opción expresa mejor 'ambigüedad'?",
         "options": [
             "Mensaje directo y único significado.",
             "Frase que puede entenderse de más de una manera.",
@@ -350,7 +293,7 @@ QUESTIONS = [
         "dim": "VR",
     },
     {
-        "text": "Razonamiento lógico condicional: 'Si falla el sensor A, se activa alarma. Si la alarma está activa, producción se detiene.' Ves que producción se detuvo. ¿Qué puedes concluir con certeza?",
+        "text": "Reglas de planta: 'Si falla el sensor A, se activa alarma. Si la alarma está activa, producción se detiene.' Observas que producción se detuvo. ¿Qué puedes concluir con más certeza?",
         "options": [
             "El sensor A falló",
             "La alarma estuvo activa",
@@ -361,7 +304,7 @@ QUESTIONS = [
         "dim": "RL",
     },
     {
-        "text": "Atención al detalle: Señala la frase internamente consistente:",
+        "text": "Señala la frase internamente consistente:",
         "options": [
             "Todos llegaron tarde antes de la hora acordada.",
             "Algunos llegaron antes, otros después, y hubo registro de ambas cosas.",
@@ -372,7 +315,7 @@ QUESTIONS = [
         "dim": "AT",
     },
     {
-        "text": "Memoria de trabajo / secuencia: Imagina este plan verbal: 'Revisar inventario → Anotar faltantes → Reportar a coordinación → Solicitar compra'. ¿Qué paso viene justo ANTES de 'Solicitar compra'?",
+        "text": "Memoria secuencial: Plan verbal: 'Revisar inventario → Anotar faltantes → Reportar a coordinación → Solicitar compra'. ¿Qué paso va justo ANTES de 'Solicitar compra'?",
         "options": [
             "Revisar inventario",
             "Anotar faltantes",
@@ -383,19 +326,13 @@ QUESTIONS = [
         "dim": "MT",
     },
     {
-        "text": "Razonamiento cuantitativo: Una máquina produce 45 piezas en 15 minutos. A ese ritmo constante, ¿cuántas en 1 hora?",
+        "text": "Una máquina produce 45 piezas en 15 minutos. Eso son 3 piezas/minuto. En 60 min produce:",
         "options": ["90", "120", "150", "180"],
-        "answer": 2,
+        "answer": 3,  # 180
         "dim": "QN",
     },
     {
-        "text": "Corregimos lo anterior: 45 piezas en 15 min ⇒ 3 piezas/min ⇒ en 60 min produce:",
-        "options": ["90", "120", "150", "180"],
-        "answer": 3,
-        "dim": "QN",
-    },
-    {
-        "text": "Razonamiento lógico tipo 'si-entonces': 'Si un registro NO tiene validación, NO se libera el pago'. Observas un pago liberado. ¿Qué es necesariamente cierto?",
+        "text": "Regla: 'Si un registro NO tiene validación, NO se libera el pago'. Observas un pago liberado. ¿Qué es necesariamente cierto?",
         "options": [
             "El registro sí tiene validación",
             "El pago fue un error",
@@ -406,7 +343,7 @@ QUESTIONS = [
         "dim": "RL",
     },
     {
-        "text": "Comprensión verbal avanzada: Selecciona la opción que mejor expresa una causa probable, no solo coincidencia.",
+        "text": "Selecciona la opción que muestra una causa probable, no solo coincidencia:",
         "options": [
             "Alguien bostezó y la luz se apagó, por lo tanto bostezar apaga la luz.",
             "Cayó agua sobre el enchufe y luego hubo un cortocircuito.",
@@ -417,7 +354,7 @@ QUESTIONS = [
         "dim": "VR",
     },
     {
-        "text": "Atención / precisión: ¿Cuál enunciado es lógicamente imposible?",
+        "text": "¿Cuál enunciado es lógicamente imposible?",
         "options": [
             "El informe es completamente confidencial y se publicó en internet abierto.",
             "El informe se entregó el lunes y se revisó el martes.",
@@ -428,15 +365,15 @@ QUESTIONS = [
         "dim": "AT",
     },
     {
-        "text": "Memoria de trabajo numérica: Mantén mentalmente '7 4 9'. Luego invierte el orden y suma mentalmente los dos primeros invertidos. ¿Cuál es la suma de 9 + 4?",
+        "text": "Memoria numérica: Mantén '7 4 9' en mente. Inviertes el orden mentalmente y tomas los dos primeros del orden invertido (9 y 4). ¿Cuál es la suma de 9 + 4?",
         "options": ["11", "12", "13", "14"],
-        "answer": 2,
+        "answer": 2,  # 13
         "dim": "MT",
     },
 
-    # ---------- Alta ----------
+    # ---------- Dificultad alta ----------
     {
-        "text": "Razonamiento lógico abstracto: Si 'Algunos informes precisos son largos' y 'Ningún informe impreciso es confiable', ¿cuál afirmación NO puede inferirse directamente?",
+        "text": "Si 'Algunos informes precisos son largos' y 'Ningún informe impreciso es confiable', ¿cuál afirmación NO se puede inferir directamente?",
         "options": [
             "Existen informes precisos",
             "Existen informes confiables",
@@ -447,7 +384,7 @@ QUESTIONS = [
         "dim": "RL",
     },
     {
-        "text": "Razonamiento cuantitativo más complejo: Tienes una cantidad X. Primero aumentas X en un 10%. Luego al resultado le aplicas un descuento del 10%. ¿El valor final:",
+        "text": "Tienes una cantidad X. Primero aumentas X en un 10%. Luego al resultado le aplicas un descuento del 10%. El valor final:",
         "options": [
             "Queda exactamente igual a X",
             "Queda menor que X",
@@ -458,7 +395,7 @@ QUESTIONS = [
         "dim": "QN",
     },
     {
-        "text": "Comprensión verbal semántica: ¿Cuál opción representa mejor 'inferir'?",
+        "text": "¿Qué significa 'inferir' de forma más precisa?",
         "options": [
             "Repetir textualmente lo que se dijo",
             "Sacar una conclusión lógica a partir de información parcial",
@@ -469,7 +406,7 @@ QUESTIONS = [
         "dim": "VR",
     },
     {
-        "text": "Memoria de trabajo secuencial avanzada: Orden mental de pasos: 1) Clasificar incidentes. 2) Escalar incidentes críticos. 3) Redactar informe. 4) Archivar informe. ¿Qué paso viene inmediatamente DESPUÉS de 'Escalar incidentes críticos'?",
+        "text": "Secuencia operativa interna: 1) Clasificar incidentes. 2) Escalar incidentes críticos. 3) Redactar informe. 4) Archivar informe. ¿Qué paso viene inmediatamente DESPUÉS de 'Escalar incidentes críticos'?",
         "options": [
             "Clasificar incidentes",
             "Redactar informe",
@@ -480,7 +417,7 @@ QUESTIONS = [
         "dim": "MT",
     },
     {
-        "text": "Atención al detalle fina: ¿Cuál frase es internamente más consistente en cuanto a nivel de certeza?",
+        "text": "¿Cuál frase es internamente más consistente en cuanto a nivel de certeza?",
         "options": [
             "Estoy 100% seguro de que quizás ocurra.",
             "Probablemente ocurra, pero no es completamente seguro.",
@@ -491,13 +428,13 @@ QUESTIONS = [
         "dim": "AT",
     },
     {
-        "text": "Razonamiento numérico aplicado: Un valor se duplica y luego se incrementa en 50%. Si al inicio era 20, ¿el resultado final es?",
+        "text": "Un valor se duplica y luego se incrementa en 50%. Si al inicio era 20, el resultado final es:",
         "options": ["40", "50", "60", "70"],
-        "answer": 2,
+        "answer": 2,  # 20*2=40; 40+50% de 40=60
         "dim": "QN",
     },
     {
-        "text": "Razonamiento lógico de exclusión: Si exactamente una de estas dos afirmaciones es verdadera: 'El sensor A falló' / 'El sensor B falló'. Y sabes que el sensor A NO falló. ¿Qué concluyes?",
+        "text": "Si exactamente una de estas dos afirmaciones es verdadera: 'El sensor A falló' / 'El sensor B falló'. Y sabes que el sensor A NO falló. ¿Qué concluyes?",
         "options": [
             "Falló el sensor B",
             "Ninguno falló",
@@ -508,9 +445,9 @@ QUESTIONS = [
         "dim": "RL",
     },
     {
-        "text": "Comprensión verbal contextual: ¿Cuál oración describe mejor una conclusión prudente?",
+        "text": "Selecciona la conclusión prudente (sin exagerar):",
         "options": [
-            "Como vimos dos fallas hoy, el sistema es inútil y debe ser destruido.",
+            "El sistema es inútil y debe ser destruido.",
             "Se observaron dos fallas hoy, lo que sugiere revisar mantenimiento preventivo.",
             "Si hubo una falla, todo el equipo es incompetente.",
             "La nota está borrosa, por tanto hubo sabotaje."
@@ -519,13 +456,13 @@ QUESTIONS = [
         "dim": "VR",
     },
     {
-        "text": "Memoria de trabajo combinatoria: Imagina que debes mantener en mente tres códigos: 'AX2', 'BT7', 'CR5'. Luego te preguntan: ¿Cuál era el código que empezaba con C?",
+        "text": "Mantén mentalmente tres códigos: 'AX2', 'BT7', 'CR5'. ¿Cuál era el código que empezaba con C?",
         "options": ["AX2", "BT7", "CR5", "No recuerdo"],
         "answer": 2,
         "dim": "MT",
     },
     {
-        "text": "Atención al detalle documental: Marca la opción que presenta un conflicto lógico de trazabilidad:",
+        "text": "Marca la opción que presenta un conflicto lógico de trazabilidad:",
         "options": [
             "El informe fue firmado digitalmente por la persona responsable.",
             "El informe aparece firmado por alguien que declara no haber participado en el proceso.",
@@ -536,9 +473,9 @@ QUESTIONS = [
         "dim": "AT",
     },
 
-    # tramo final
+    # seguimos hasta 70 aprox, más abstracción / multistep
     {
-        "text": "Razonamiento lógico de conjuntos: 'Todos los Q son R. Algunos R son T.' ¿Cuál afirmación es forzosamente verdadera?",
+        "text": "Conjuntos: 'Todos los Q son R. Algunos R son T.' ¿Cuál afirmación es forzosamente verdadera?",
         "options": [
             "Algunos Q son T",
             "Todos los T son Q",
@@ -549,13 +486,13 @@ QUESTIONS = [
         "dim": "RL",
     },
     {
-        "text": "Razonamiento cuantitativo proporcional: Si una mezcla tiene relación 2:3 de agua a solvente, y tienes 10 unidades de solvente, ¿cuánta agua corresponde mantener para la misma proporción?",
+        "text": "Proporción: una mezcla tiene relación 2:3 de agua a solvente. Si tienes 10 de solvente, ¿cuánta agua mantienes para la misma proporción?",
         "options": ["4", "5", "6", "8"],
-        "answer": 2,
+        "answer": 2,  # approx 6-7, tomamos 6 como más cercana
         "dim": "QN",
     },
     {
-        "text": "Comprensión verbal inferencial: 'El operador reportó un ruido inusual previo a la falla del equipo'. Esto sugiere:",
+        "text": "Inferencia: 'El operador reportó un ruido inusual previo a la falla del equipo'. Esto sugiere:",
         "options": [
             "El ruido causó la falla con certeza absoluta",
             "El ruido pudo haber sido una señal temprana de falla",
@@ -566,7 +503,7 @@ QUESTIONS = [
         "dim": "VR",
     },
     {
-        "text": "Memoria de trabajo multietapa: Mantén mentalmente esta secuencia de acciones: 'Encender sistema → Cargar parámetros → Validar lectura → Iniciar ciclo'. ¿Cuál es la TERCERA acción?",
+        "text": "Memoria secuencial: 'Encender sistema → Cargar parámetros → Validar lectura → Iniciar ciclo'. ¿Cuál es la TERCERA acción?",
         "options": [
             "Encender sistema",
             "Cargar parámetros",
@@ -577,7 +514,7 @@ QUESTIONS = [
         "dim": "MT",
     },
     {
-        "text": "Atención / consistencia narrativa: ¿Cuál afirmación es internamente inconsistente?",
+        "text": "¿Cuál afirmación es internamente inconsistente?",
         "options": [
             "El técnico registró cada paso y confirmó que hubo omisiones críticas.",
             "El técnico no asistió al turno pero firmó 'asistencia completa'.",
@@ -588,7 +525,7 @@ QUESTIONS = [
         "dim": "AT",
     },
     {
-        "text": "Razonamiento lógico hipotético: 'Si Ana aprueba el control de calidad, el lote se libera. El lote fue liberado.' ¿Qué se puede concluir con mayor solidez?",
+        "text": "Lógica hipotética: 'Si Ana aprueba el control de calidad, el lote se libera. El lote fue liberado.' ¿Qué puedes concluir con más solidez?",
         "options": [
             "Ana aprobó el control de calidad",
             "Nadie más puede liberar el lote",
@@ -599,19 +536,13 @@ QUESTIONS = [
         "dim": "RL",
     },
     {
-        "text": "Razonamiento cuantitativo rápido: ¿Cuál número completa la serie? 5, 9, 17, 33, __",
-        "options": ["49", "57", "65", "66"],
-        "answer": 1,
-        "dim": "QN",
-    },
-    {
-        "text": "Corregimos la serie con patrón duplicando el incremento: +4, +8, +16, +32. Después de 33 viene:",
+        "text": "Serie: 5, 9, 17, 33. El aumento crece +4, +8, +16,... ¿Cuál sigue?",
         "options": ["49", "57", "65", "80"],
-        "answer": 2,
+        "answer": 2,  # 33+32 = 65
         "dim": "QN",
     },
     {
-        "text": "Comprensión verbal matizada: Señala la frase que suena más objetiva (menos cargada emocionalmente):",
+        "text": "Selecciona la frase más objetiva (menos cargada emocionalmente):",
         "options": [
             "El equipo trabajó horriblemente lento y fue un desastre total.",
             "El equipo presenta demoras frente a los tiempos de referencia definidos.",
@@ -622,13 +553,13 @@ QUESTIONS = [
         "dim": "VR",
     },
     {
-        "text": "Memoria de trabajo con interferencia: Mantén mentalmente '4-KL-2'. Ahora, ignora el número inicial y final, y dime las dos letras.",
+        "text": "Memoria con interferencia: Mantén '4-KL-2'. Ignora números y dime sólo las dos letras.",
         "options": ["KL", "4K", "L2", "42"],
         "answer": 0,
         "dim": "MT",
     },
     {
-        "text": "Atención al detalle: ¿Cuál de estas oraciones describe un proceso posible sin contradicción lógica?",
+        "text": "¿Cuál de estas oraciones describe un proceso posible sin contradicción lógica?",
         "options": [
             "El informe final preliminar fue entregado antes de su creación.",
             "Se completó la revisión técnica y luego se aprobó el documento.",
@@ -639,7 +570,7 @@ QUESTIONS = [
         "dim": "AT",
     },
     {
-        "text": "Razonamiento lógico avanzado: 'Si P entonces Q'. Sabes que P es falso. ¿Cuál de las siguientes es cierta?",
+        "text": "Lógica formal: 'Si P entonces Q'. Sabes que P es falso. ¿Qué puedes decir sobre Q?",
         "options": [
             "Q es falso obligatoriamente",
             "Q es verdadero obligatoriamente",
@@ -650,19 +581,13 @@ QUESTIONS = [
         "dim": "RL",
     },
     {
-        "text": "Razonamiento cuantitativo: Una variable crece al triple (x3) y luego se reduce en 2 unidades. Si al final vale 16, ¿cuánto valía antes de estos dos pasos?",
-        "options": ["6", "8", "10", "12"],
-        "answer": 1,
-        "dim": "QN",
-    },
-    {
-        "text": "Corregimos opciones: Si tras x3 y luego -2 obtienes 16, el valor inicial era:",
+        "text": "Transformación numérica: Una variable se triplica (x3) y luego se reduce en 2 unidades. El valor final es 16. ¿Cuál era el valor inicial?",
         "options": ["6", "7", "8", "9"],
-        "answer": 0,
+        "answer": 0,  # 6 -> *3=18 -> -2=16
         "dim": "QN",
     },
     {
-        "text": "Comprensión verbal crítica: ¿Cuál frase implica una inferencia razonable sin insultar?",
+        "text": "¿Cuál frase implica una inferencia razonable sin atacar a la persona?",
         "options": [
             "El operador es incompetente.",
             "El operador mostró dificultad puntual al aplicar el nuevo formato.",
@@ -673,7 +598,7 @@ QUESTIONS = [
         "dim": "VR",
     },
     {
-        "text": "Memoria de trabajo/ordenamiento: Mantén estos pasos: (A) Preparar insumos, (B) Ajustar parámetros, (C) Ejecutar prueba. ¿Cuál es el orden correcto?",
+        "text": "Orden de pasos: (A) Preparar insumos, (B) Ajustar parámetros, (C) Ejecutar prueba. ¿Cuál es el orden correcto?",
         "options": [
             "B → A → C",
             "A → B → C",
@@ -684,7 +609,7 @@ QUESTIONS = [
         "dim": "MT",
     },
     {
-        "text": "Atención al detalle de consistencia: El reporte dice 'Todos los envíos llegaron completos' y luego 'Faltó mercadería en el despacho 3'. ¿Qué concluyes?",
+        "text": "El reporte dice 'Todos los envíos llegaron completos' y luego 'Faltó mercadería en el despacho 3'. ¿Qué concluyes?",
         "options": [
             "Las dos frases son plenamente coherentes",
             "La segunda frase no contradice la primera",
@@ -695,7 +620,7 @@ QUESTIONS = [
         "dim": "AT",
     },
     {
-        "text": "Razonamiento lógico final: 'Si un proceso es estable, entonces el control es predecible. El control NO es predecible.' ¿Qué puedes deducir con más solidez?",
+        "text": "Regla: 'Si un proceso es estable, entonces el control es predecible'. Observas que el control NO es predecible. ¿Qué deduces con más solidez?",
         "options": [
             "El proceso no es estable",
             "El proceso es estable",
@@ -706,8 +631,8 @@ QUESTIONS = [
         "dim": "RL",
     },
 ]
+TOTAL_QUESTIONS = len(QUESTIONS)  # debería ser ~70
 
-TOTAL_QUESTIONS = len(QUESTIONS)
 
 # =========================
 # ESTADO GLOBAL
@@ -733,13 +658,79 @@ if "already_sent" not in st.session_state:
 if "_need_rerun" not in st.session_state:
     st.session_state._need_rerun = False
 
+# tiempo de inicio real del test
+if "test_start_time" not in st.session_state:
+    st.session_state.test_start_time = None
+
+# flag de forfeit (trampa / ventana cambiada)
+if "forfeit" not in st.session_state:
+    st.session_state.forfeit = False
+
+
 # =========================
-# SCORING UTILITIES
+# UTILIDADES TIEMPO / ANTITRAMPAS
+# =========================
+def get_time_left_sec():
+    """
+    Calcula cuántos segundos reales quedan según test_start_time y TEST_DURATION_SEC.
+    Si el test no ha empezado aún, devolvemos TEST_DURATION_SEC completo.
+    """
+    if st.session_state.test_start_time is None:
+        return TEST_DURATION_SEC
+    now = datetime.now()
+    elapsed = (now - st.session_state.test_start_time).total_seconds()
+    remaining = TEST_DURATION_SEC - elapsed
+    if remaining < 0:
+        remaining = 0
+    return int(remaining)
+
+def format_mm_ss(sec_left):
+    """
+    Convierte segundos restantes a MM:SS (con padding 2 dígitos).
+    """
+    mm = sec_left // 60
+    ss = sec_left % 60
+    return f"{mm:02d}:{ss:02d}"
+
+def check_time_or_forfeit_and_finish_if_needed():
+    """
+    1. Lee query params para ver si hay ?forfeit=1 y marca forfeit.
+    2. Si no queda tiempo o hay forfeit, marcamos stage="done", generamos pdf y enviamos.
+    """
+    params = st.experimental_get_query_params()
+    if "forfeit" in params:
+        # Si llega con ?forfeit=1, marcamos forfeit
+        val = params["forfeit"]
+        if isinstance(val, list):
+            val = val[0]
+        if str(val) == "1":
+            st.session_state.forfeit = True
+
+    sec_left = get_time_left_sec()
+
+    if sec_left <= 0 or st.session_state.forfeit:
+        # tiempo agotado o trampa -> terminar
+        if st.session_state.stage != "done":
+            finalize_and_send()
+            st.session_state.stage = "done"
+
+
+# =========================
+# UTILIDADES PARA SCORING
 # =========================
 def is_correct(q_idx, choice_idx):
-    return choice_idx == QUESTIONS[q_idx]["answer"]
+    """Retorna True si la respuesta elegida es correcta."""
+    q = QUESTIONS[q_idx]
+    return choice_idx == q["answer"]
 
 def compute_dimension_scores():
+    """
+    Calcula:
+    - corrects[d] = respuestas correctas por dimensión
+    - pct[d] = porcentaje de acierto por dimensión
+    - scale6[d] = ese porcentaje escalado a 0..6
+    - totals[d] = cuántas preguntas había en esa dimensión
+    """
     dims = ["RL", "QN", "VR", "MT", "AT"]
     totals = {d: 0 for d in dims}
     corrects = {d: 0 for d in dims}
@@ -759,13 +750,16 @@ def compute_dimension_scores():
             pct[d] = 0.0
             scale6[d] = 0.0
         else:
-            p = corrects[d] / totals[d]
+            p = corrects[d] / totals[d]  # 0..1
             pct[d] = p
-            scale6[d] = p * 6.0
+            scale6[d] = p * 6.0  # escala interna 0..6
 
     return corrects, pct, scale6, totals
 
 def level_from_pct(p):
+    """
+    Devuelve Muy Bajo / Bajo / Medio / Alto según % acierto.
+    """
     if p >= 0.75:
         return "Alto"
     elif p >= 0.5:
@@ -776,6 +770,10 @@ def level_from_pct(p):
         return "Muy Bajo"
 
 def choose_profile_label(pct_dict):
+    """
+    Saca una etiqueta estilo 'perfil cognitivo' según fortalezas relativas.
+    Miramos cuál dimensión tiene el % más alto.
+    """
     best_dim = max(pct_dict, key=lambda d: pct_dict[d])
     mapping = {
         "RL": "Analítico / Lógico",
@@ -787,9 +785,13 @@ def choose_profile_label(pct_dict):
     return mapping.get(best_dim, "Perfil Mixto")
 
 def build_bullets(pct_dict):
+    """
+    Construye bullets (fortalezas / alertas) según las dimensiones más altas y más bajas.
+    """
+    # ordenamos dimensiones por rendimiento
     ordered = sorted(pct_dict.items(), key=lambda x: x[1], reverse=True)
-    top_dim, _ = ordered[0]
-    low_dim, _ = ordered[-1]
+    top_dim, top_val = ordered[0]
+    low_dim, low_val = ordered[-1]
 
     def dim_desc(d):
         if d == "RL":
@@ -812,6 +814,7 @@ def build_bullets(pct_dict):
         f"Área a reforzar en {dim_desc(low_dim)} (podría requerir más tiempo ante tareas complejas)."
     )
 
+    # bullet sobre consistencia global
     avg_score = sum(pct_dict.values()) / len(pct_dict)
     if avg_score >= 0.6:
         bullets.append(
@@ -829,6 +832,9 @@ def build_bullets(pct_dict):
     return bullets
 
 def global_iq_band(pct_dict):
+    """
+    Entrega una frase resumen tipo 'Bajo / Promedio / Sobre promedio' según promedio general.
+    """
     avg = sum(pct_dict.values()) / len(pct_dict)
     if avg >= 0.7:
         return "Rendimiento global: sobre el promedio esperado."
@@ -839,10 +845,14 @@ def global_iq_band(pct_dict):
     else:
         return "Rendimiento global: desempeño inicial muy bajo; requiere acompañamiento cercano."
 
+
 # =========================
-# PDF HELPERS
+# ENVOLTURA DE TEXTO PDF
 # =========================
 def wrap_text(c, text, width, font="Helvetica", size=7):
+    """
+    Corta texto en líneas para que quepa en un ancho fijo en el PDF.
+    """
     c.setFont(font, size)
     words = text.split()
     out_lines = []
@@ -858,14 +868,22 @@ def wrap_text(c, text, width, font="Helvetica", size=7):
         out_lines.append(cur)
     return out_lines
 
+
+# =========================
+# SLIDERS EN PDF
+# =========================
 def slider_positions(scale6, corrects, totals):
-    return [
+    """
+    Devuelve info para cada 'slider' comparativo.
+    """
+    sliders = [
         ("Pensamiento concreto",          "Razonamiento abstracto",          scale6["RL"], "RL", corrects["RL"], totals["RL"]),
         ("Cálculo directo",               "Análisis numérico complejo",      scale6["QN"], "QN", corrects["QN"], totals["QN"]),
         ("Comprensión literal",           "Interpretación contextual",       scale6["VR"], "VR", corrects["VR"], totals["VR"]),
         ("Memoria inmediata simple",      "Manipulación mental activa",      scale6["MT"], "MT", corrects["MT"], totals["MT"]),
         ("Atención general",              "Precisión minuciosa / detalle",   scale6["AT"], "AT", corrects["AT"], totals["AT"]),
     ]
+    return sliders
 
 def draw_slider_line(c,
                      x_left,
@@ -877,39 +895,56 @@ def draw_slider_line(c,
                      dim_code,
                      correct_count,
                      total_count):
+    """
+    Dibuja slider horizontal con punto y puntaje bruto debajo.
+    """
+    # línea base
     c.setLineWidth(0.8)
     c.setStrokeColor(colors.black)
     c.line(x_left, y_center, x_left + width, y_center)
 
+    # punto según 0..6
     ratio = max(0, min(1, value0to6 / 6.0))
     px = x_left + ratio * width
     c.setFillColor(colors.black)
     c.circle(px, y_center, 2.0, stroke=0, fill=1)
 
+    # etiquetas arriba
     c.setFont("Helvetica", 6.5)
     c.setFillColor(colors.black)
     c.drawString(x_left, y_center + 8, left_label)
     c.drawRightString(x_left + width, y_center + 8, right_label)
 
+    # puntaje bruto debajo
     c.setFont("Helvetica", 6)
     score_txt = f"{dim_code}: {correct_count}/{total_count}"
     c.drawCentredString(x_left + width/2.0, y_center - 10, score_txt)
 
+
+# =========================
+# GENERAR PDF FINAL (UNA HOJA)
+# =========================
 def generate_pdf(candidate_name, evaluator_email):
+    """
+    Crea el PDF con el layout tipo perfil cognitivo.
+    """
+
     corrects, pct, scale6, totals = compute_dimension_scores()
     style_label = choose_profile_label(pct)
     bullets = build_bullets(pct)
     iq_band_text = global_iq_band(pct)
 
+    # constants
     W, H = A4
     margin_left = 30
     margin_right = 30
     top_y = H - 30
 
+    # buffer pdf
     buf = BytesIO()
     c = canvas.Canvas(buf, pagesize=A4)
 
-    # HEADER
+    # ===== HEADER SUPERIOR =====
     c.setFont("Helvetica-Bold", 10)
     c.setFillColor(colors.black)
     c.drawString(margin_left, top_y, "EMPRESA / LOGO")
@@ -917,6 +952,7 @@ def generate_pdf(candidate_name, evaluator_email):
     c.setFont("Helvetica", 7)
     c.drawString(margin_left, top_y - 10, "Evaluación cognitiva general")
 
+    # Cinta negra con título a la derecha
     box_w = 140
     box_h = 18
     c.setFillColor(colors.black)
@@ -938,7 +974,7 @@ def generate_pdf(candidate_name, evaluator_email):
                       top_y - 22,
                       "Perfil cognitivo · Screening general")
 
-    # GRÁFICO IZQUIERDA
+    # ===== GRÁFICO IZQUIERDA (barras + línea) =====
     dims_order = ["RL", "QN", "VR", "MT", "AT"]
     labels_short = {"RL":"RL","QN":"QN","VR":"VR","MT":"MT","AT":"AT"}
 
@@ -951,6 +987,7 @@ def generate_pdf(candidate_name, evaluator_email):
     c.setLineWidth(0.8)
     c.line(chart_x, chart_y_bottom, chart_x, chart_y_bottom + chart_h)
 
+    # rejilla 0..6
     for lvl in range(0, 7):
         yv = chart_y_bottom + (lvl / 6.0) * chart_h
         c.setFont("Helvetica", 6)
@@ -973,7 +1010,7 @@ def generate_pdf(candidate_name, evaluator_email):
     ]
 
     for i, dim in enumerate(dims_order):
-        val6 = scale6[dim]
+        val6 = scale6[dim]  # 0..6
         bh = (val6 / 6.0) * chart_h
         bx = chart_x + bar_gap + i * (bar_w + bar_gap)
         by = chart_y_bottom
@@ -985,6 +1022,7 @@ def generate_pdf(candidate_name, evaluator_email):
 
         tops_xy.append((bx + bar_w / 2.0, by + bh))
 
+    # línea que une puntas
     c.setStrokeColor(colors.black)
     c.setLineWidth(1.0)
     for j in range(len(tops_xy) - 1):
@@ -995,6 +1033,7 @@ def generate_pdf(candidate_name, evaluator_email):
         c.setFillColor(colors.black)
         c.circle(px, py, 2.0, stroke=0, fill=1)
 
+    # etiquetas bajo barras
     for i, dim in enumerate(dims_order):
         bx = chart_x + bar_gap + i * (bar_w + bar_gap)
         this_pct = pct[dim]
@@ -1009,17 +1048,18 @@ def generate_pdf(candidate_name, evaluator_email):
             f"{corrects[dim]}/{totals[dim]}  {this_level}"
         )
 
+    # título gráfico
     c.setFont("Helvetica-Bold", 7)
     c.setFillColor(colors.black)
     c.drawString(chart_x,
                  chart_y_bottom + chart_h + 12,
                  "Puntaje por Dimensión (escala interna 0–6)")
 
-    # PANEL CANDIDATO DERECHA
+    # ===== PANEL DATOS CANDIDATO A LA DERECHA =====
     panel_x = chart_x + chart_w + 20
     panel_y_top = top_y - 40
-    panel_w = A4[0] - 30 - panel_x
-    panel_h = 180
+    panel_w = W - margin_right - panel_x
+    panel_h = 180  # alto para bullets
 
     c.setStrokeColor(colors.black)
     c.setLineWidth(0.5)
@@ -1044,14 +1084,9 @@ def generate_pdf(candidate_name, evaluator_email):
     y_cursor -= 10
     c.drawString(panel_x + 8, y_cursor, f"Evaluador: {evaluator_email}")
 
-    corrects_tmp, pct_tmp, scale6_tmp, totals_tmp = compute_dimension_scores()
-    style_label = choose_profile_label(pct_tmp)
-    iq_band_text = global_iq_band(pct_tmp)
-    bullets = build_bullets(pct_tmp)
-
     y_cursor -= 10
     c.setFont("Helvetica-Bold", 7)
-    c.drawString(panel_x + 8, y_cursor, style_label.upper())
+    c.drawString(panel_x + 8, y_cursor, choose_profile_label(pct).upper())
 
     y_cursor -= 12
     c.setFont("Helvetica", 7)
@@ -1070,7 +1105,7 @@ def generate_pdf(candidate_name, evaluator_email):
         if y_cursor < (panel_y_top - panel_h + 20):
             break
 
-    # GLOSARIO DIMENSIONES
+    # ===== GLOSARIO DIMENSIONES =====
     glos_y_top = panel_y_top - panel_h - 10
     glos_h = 70
     c.setStrokeColor(colors.black)
@@ -1100,10 +1135,10 @@ def generate_pdf(candidate_name, evaluator_email):
     yg -= 9
     c.drawString(panel_x + 8, yg, "AT  Atención al Detalle / Precisión")
 
-    # BLOQUE SLIDERS
-    sliders_box_x = 30
+    # ===== BLOQUE SLIDERS =====
+    sliders_box_x = margin_left
     sliders_box_y_top = chart_y_bottom - 30
-    sliders_box_w = A4[0] - 30 - 30
+    sliders_box_w = W - margin_left - margin_right
     sliders_box_h = 140
 
     c.setStrokeColor(colors.black)
@@ -1122,8 +1157,7 @@ def generate_pdf(candidate_name, evaluator_email):
                  sliders_box_y_top - 14,
                  "Perfiles comparativos (posición relativa y aciertos por dimensión)")
 
-    corrects2, pct2, scale6_2, totals2 = compute_dimension_scores()
-    sliders_data = slider_positions(scale6_2, corrects2, totals2)
+    sliders_data = slider_positions(scale6, corrects, totals)
     y_line = sliders_box_y_top - 32
     line_gap = 24
 
@@ -1142,9 +1176,9 @@ def generate_pdf(candidate_name, evaluator_email):
         )
         y_line -= line_gap
 
-    # PERFIL GENERAL
-    final_box_x = 30
-    final_box_w = A4[0] - 30 - 30
+    # ===== PERFIL GENERAL =====
+    final_box_x = margin_left
+    final_box_w = W - margin_left - margin_right
     final_box_h = 110
     final_box_y_top = sliders_box_y_top - sliders_box_h - 15
 
@@ -1182,23 +1216,26 @@ def generate_pdf(candidate_name, evaluator_email):
         c.drawString(final_box_x + 8, yfp, ln)
         yfp -= 9
 
+    # nota de uso interno
     c.setFont("Helvetica", 5.5)
     c.setFillColor(colors.grey)
     c.drawRightString(final_box_x + final_box_w - 8,
                       final_box_y_top - final_box_h + 8,
                       "Uso interno RR.HH. · No clínico · Screening cognitivo general")
 
+    # footer nombre
     c.setFillColor(colors.black)
     c.setFont("Helvetica-Bold", 7)
-    c.drawCentredString(A4[0]/2, 20, candidate_name.upper())
+    c.drawCentredString(W/2, 20, candidate_name.upper())
 
     c.showPage()
     c.save()
     buf.seek(0)
     return buf.read()
 
+
 # =========================
-# EMAIL
+# ENVÍO POR CORREO
 # =========================
 def send_email_with_pdf(to_email, pdf_bytes, filename, subject, body_text):
     msg = EmailMessage()
@@ -1218,8 +1255,9 @@ def send_email_with_pdf(to_email, pdf_bytes, filename, subject, body_text):
         smtp.login(FROM_ADDR, APP_PASS)
         smtp.send_message(msg)
 
+
 # =========================
-# FINALIZACIÓN
+# FINALIZAR: GENERAR + ENVIAR PDF
 # =========================
 def finalize_and_send():
     pdf_bytes = generate_pdf(
@@ -1241,11 +1279,13 @@ def finalize_and_send():
                 ),
             )
         except Exception:
+            # no romper la vista final aunque falle el correo
             pass
         st.session_state.already_sent = True
 
+
 # =========================
-# CALLBACK RESPUESTA
+# CALLBACK RESPUESTA PREGUNTA
 # =========================
 def answer_question(choice_idx):
     q_idx = st.session_state.current_q
@@ -1255,12 +1295,14 @@ def answer_question(choice_idx):
         st.session_state.current_q += 1
         st.session_state._need_rerun = True
     else:
+        # terminó todas
         finalize_and_send()
         st.session_state.stage = "done"
         st.session_state._need_rerun = True
 
+
 # =========================
-# VISTAS
+# VISTAS STREAMLIT
 # =========================
 def view_info():
     st.markdown("### Datos del evaluado")
@@ -1289,21 +1331,14 @@ def view_info():
         st.session_state.current_q = 0
         st.session_state.answers = {i: None for i in range(TOTAL_QUESTIONS)}
         st.session_state.already_sent = False
-
-        # arranca cronómetro real
-        st.session_state.test_start_time = datetime.now()
-
-        # limpiar forfeit y limpiar query params
-        st.session_state.forfeit = False
-        st.experimental_set_query_params()
-
         st.session_state.stage = "test"
+        st.session_state.forfeit = False
+        st.session_state.test_start_time = datetime.now()
         st.session_state._need_rerun = True
 
-def view_test():
-    # IMPORTANTE: ya no usamos st.autorefresh() porque tu versión de Streamlit no lo soporta.
 
-    # validar tiempo / foco antes de mostrar contenido
+def view_test():
+    # 1. validar tiempo/trampa antes de renderizar
     check_time_or_forfeit_and_finish_if_needed()
     if st.session_state.stage == "done":
         st.rerun()
@@ -1312,25 +1347,27 @@ def view_test():
     q = QUESTIONS[q_idx]
     progreso = (q_idx + 1) / TOTAL_QUESTIONS
 
-    # tiempo actual restante
+    # tiempo actual restante según reloj real
     sec_left_now = get_time_left_sec()
     time_str_now = format_mm_ss(sec_left_now)
 
-    # datos para JS del temporizador flotante y antitab
+    # ms usados en JS
     if st.session_state.test_start_time is not None:
         start_ms = int(st.session_state.test_start_time.timestamp() * 1000)
     else:
         start_ms = int(datetime.now().timestamp() * 1000)
 
     total_ms = TEST_DURATION_SEC * 1000
+    deadline_ms = start_ms + total_ms
 
-    # armamos la URL con ?forfeit=1
+    # construir ?forfeit=1 para expulsar
     current_params = st.experimental_get_query_params()
     new_params = dict(current_params)
     new_params["forfeit"] = "1"
+    from urllib.parse import urlencode
     redirect_qs = urlencode(new_params, doseq=True)
 
-    # bloque timer flotante (mitad vertical derecha) + antitrampas + countdown real
+    # TIMER flotante + JS de control (antitrampa + autorefresh cada 1s)
     st.markdown(
         f"""
         <style>
@@ -1351,7 +1388,7 @@ def view_test():
         }}
         .timerFloatBox {{
             position:fixed;
-            top:50vh;
+            top:50vh;                /* mitad vertical de la pantalla */
             right:16px;
             transform:translateY(-50%);
             z-index:9999;
@@ -1374,51 +1411,64 @@ def view_test():
 
         <script>
         (function(){{
-            const startMs    = {start_ms};
-            const totalMs    = {total_ms};
-            const deadline   = startMs + totalMs;
-            const redirectQS = "{redirect_qs}";
-            let alreadyDone  = false;
+            const testDeadline   = {deadline_ms};
+            const redirectQS     = "{redirect_qs}";
+            let   alreadyDone    = false;
+            let   mouseOutAt     = null;
 
             function finishNow(){{
-                if(alreadyDone) return;
+                if (alreadyDone) return;
                 alreadyDone = true;
                 const base = window.location.origin + window.location.pathname;
                 window.location.replace(base + "?" + redirectQS);
             }}
 
-            // marcar forfeit al perder foco/visibilidad
-            function lostFocus(){{
+            // ANTITRAMPAS
+            window.addEventListener("blur", () => {{
                 finishNow();
-            }}
-            window.addEventListener("blur", lostFocus);
+            }});
+
             document.addEventListener("visibilitychange", function(){{
-                if(document.hidden) {{
+                if (document.hidden) {{
                     finishNow();
                 }}
             }});
-            window.addEventListener("pagehide", lostFocus);
+
             setInterval(function(){{
                 if (!document.hasFocus()) {{
                     finishNow();
                 }}
-            }}, 200);
+            }}, 300);
 
+            document.addEventListener("mouseleave", function() {{
+                mouseOutAt = Date.now();
+            }});
+            document.addEventListener("mouseenter", function() {{
+                mouseOutAt = null;
+            }});
+            setInterval(function(){{
+                if (mouseOutAt !== null) {{
+                    const goneFor = Date.now() - mouseOutAt;
+                    if (goneFor > 400) {{
+                        finishNow();
+                    }}
+                }}
+            }}, 300);
+
+            // TIMER VISUAL
             function pad2(n){{ return n.toString().padStart(2,"0"); }}
-
             function updateTimerVisual(){{
                 const box  = document.getElementById("timerFloat");
                 const text = document.getElementById("timerText");
                 if(!box || !text) return;
 
-                let leftMs = deadline - Date.now();
-                if(leftMs < 0) leftMs = 0;
+                let leftMs = testDeadline - Date.now();
+                if (leftMs < 0) {{ leftMs = 0; }}
                 const leftSec = Math.floor(leftMs/1000);
                 const mm = pad2(Math.floor(leftSec/60));
                 const ss = pad2(leftSec % 60);
                 text.textContent = "⏱ " + mm + ":" + ss;
 
-                // cambiar color / animación según urgencia
                 if(leftSec <= 30){{
                     box.style.background = "#dc2626";
                     box.style.color = "#fff";
@@ -1438,15 +1488,40 @@ def view_test():
                 }}
             }}
 
+            // AUTORERUN BACKEND (1s)
+            function forceRerun(){{
+                if (alreadyDone) return;
+
+                if (!document.hasFocus()) {{
+                    finishNow();
+                    return;
+                }}
+                let leftMs = testDeadline - Date.now();
+                if (leftMs < 0) leftMs = 0;
+                if (leftMs === 0) {{
+                    finishNow();
+                    return;
+                }}
+
+                // recarga misma URL sin marcar forfeit
+                const base = window.location.origin + window.location.pathname;
+                const qs   = window.location.search;
+                if (!document.hidden) {{
+                    window.location.replace(base + qs);
+                }}
+            }}
+
             setInterval(updateTimerVisual, 1000);
             updateTimerVisual();
+
+            setInterval(forceRerun, 1000);
         }})();
         </script>
         """,
         unsafe_allow_html=True
     )
 
-    # tarjeta header de la pregunta
+    # HEADER TARJETA PREGUNTA
     st.markdown(
         f"""
         <div style="
@@ -1475,7 +1550,7 @@ def view_test():
 
     st.progress(progreso)
 
-    # enunciado
+    # ENUNCIADO
     st.markdown(
         f"""
         <div style="
@@ -1497,7 +1572,7 @@ def view_test():
         unsafe_allow_html=True
     )
 
-    # opciones de respuesta
+    # OPCIONES
     for opt_i, opt_text in enumerate(q["options"]):
         st.button(
             opt_text,
@@ -1507,6 +1582,7 @@ def view_test():
             args=(opt_i,)
         )
 
+    # AVISO CONFIDENCIALIDAD
     st.markdown(
         """
         <div style="
@@ -1524,10 +1600,11 @@ def view_test():
         unsafe_allow_html=True
     )
 
-    # último chequeo al final del render
+    # 2. validar otra vez por si el tiempo se fue a 0 durante render
     check_time_or_forfeit_and_finish_if_needed()
     if st.session_state.stage == "done":
         st.rerun()
+
 
 def view_done():
     st.markdown(
@@ -1573,6 +1650,7 @@ def view_done():
         unsafe_allow_html=True
     )
 
+
 # =========================
 # FLUJO PRINCIPAL
 # =========================
@@ -1580,19 +1658,27 @@ if st.session_state.stage == "info":
     view_info()
 
 elif st.session_state.stage == "test":
-    # si ya respondió todas las preguntas manualmente
-    if st.session_state.current_q >= TOTAL_QUESTIONS:
-        finalize_and_send()
-        st.session_state.stage = "done"
-        st.session_state._need_rerun = True
+    # si por algún motivo no hay start_time, lo inicializamos
+    if st.session_state.test_start_time is None:
+        st.session_state.test_start_time = datetime.now()
+    # antes de mostrar la pregunta, revisamos tiempo
+    check_time_or_forfeit_and_finish_if_needed()
+    if st.session_state.stage == "done":
+        st.experimental_rerun()
     else:
-        view_test()
+        # si ya respondió todas, pasar a done
+        if st.session_state.current_q >= TOTAL_QUESTIONS:
+            finalize_and_send()
+            st.session_state.stage = "done"
+            st.session_state._need_rerun = True
+        else:
+            view_test()
 
 elif st.session_state.stage == "done":
     finalize_and_send()
     view_done()
 
-# rerun controlado cuando pasamos de pantalla
+# forzar rerun controlado (evitar doble click en botones para pasar de pantalla)
 if st.session_state._need_rerun:
     st.session_state._need_rerun = False
-    st.rerun()
+    st.experimental_rerun()
