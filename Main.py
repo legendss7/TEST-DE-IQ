@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 from io import BytesIO
 import smtplib
 from email.message import EmailMessage
+from urllib.parse import urlencode
 
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
@@ -22,98 +23,32 @@ st.set_page_config(
 # CREDENCIALES CORREO
 # =========================
 FROM_ADDR = "jo.tajtaj@gmail.com"
-APP_PASS = "nlkt kujl ebdg cyts"  # usa tu pass de app Gmail, no la clave normal
+APP_PASS = "nlkt kujl ebdg cyts"  # tu pass de app Gmail
 
 
 # =========================
-# AJUSTES NUEVOS: TIMER + ANTITRAMPAS
+# AJUSTES TIMER + ANTITRAMPAS
 # =========================
+TEST_DURATION_SEC = 15 * 60  # 15 min = 900s
 
-# duración total en segundos (15 minutos)
-TEST_DURATION_SEC = 15 * 60  # 900 segundos
-
-# Inicializamos campos nuevos si no existen
 if "test_start_time" not in st.session_state:
-    st.session_state.test_start_time = None  # datetime cuando comenzó la prueba
+    st.session_state.test_start_time = None  # datetime de inicio real del test
 
 if "forfeit" not in st.session_state:
-    st.session_state.forfeit = False  # bandera de "perdió por cambiar de pestaña"
+    st.session_state.forfeit = False  # bandera "perdió por cambiar de pestaña"
 
-# Detectar si la pestaña perdió foco, cambió de tab o abrió otra app,
-# vía query param "forfeit=1" (el JS redirige la URL con ese parámetro)
-from urllib.parse import urlencode
-
+# si ya viene marcado forfeit en la URL, lo reflejamos en sesión
 params = st.experimental_get_query_params()
 if "forfeit" in params:
     st.session_state.forfeit = True
 
 
-def js_focus_guard():
-    """
-    Inyecta JavaScript que:
-    - Escucha varios eventos de pérdida de foco / cambio de visibilidad / abandono.
-    - Hace polling de document.hasFocus() cada 200ms.
-    - Si detecta pérdida de atención en la pestaña, redirige a la misma URL con ?forfeit=1
-      para gatillar el término inmediato del test en Python.
-    """
-    current_params = st.experimental_get_query_params()
-    if "forfeit" in current_params:
-        # Ya está marcado forfeit en la URL, no volvemos a sobrescribir
-        return
-
-    new_params = dict(current_params)
-    new_params["forfeit"] = "1"
-    query_str = urlencode(new_params, doseq=True)
-
-    st.components.v1.html(
-        f"""
-        <script>
-        (function() {{
-            let alreadyFlagged = false;
-            function flagForfeit(){{
-                if(alreadyFlagged) return;
-                alreadyFlagged = true;
-                const base = window.location.origin + window.location.pathname;
-                const qs = "{query_str}";
-                window.location.replace(base + "?" + qs);
-            }}
-
-            // Pestaña pierde foco (blur en la ventana)
-            window.addEventListener("blur", flagForfeit);
-
-            // Pestaña deja de estar visible (cambiar de tab / minimizar)
-            document.addEventListener("visibilitychange", function() {{
-                if (document.hidden) {{
-                    flagForfeit();
-                }}
-            }});
-
-            // Navegador registra que la página está siendo ocultada / reemplazada
-            window.addEventListener("pagehide", function() {{
-                flagForfeit();
-            }});
-
-            // Refuerzo continuo: chequeo si la pestaña sigue enfocada
-            setInterval(function(){{
-                if (!document.hasFocus()) {{
-                    flagForfeit();
-                }}
-            }}, 200);
-        }})();
-        </script>
-        """,
-        height=0,
-    )
-
-
 def get_time_left_sec():
     """
-    Devuelve segundos restantes del temporizador global.
-    Si ya se acabó el tiempo, devuelve 0.
+    Diferencia entre ahora y el inicio guardado en sesión (tiempo real).
+    No depende de avanzar preguntas.
     """
     if st.session_state.test_start_time is None:
-        # si por alguna razón no se ha seteado aún (antes de presionar "Iniciar test"),
-        # devolvemos el total completo visualmente
         return TEST_DURATION_SEC
     elapsed = (datetime.now() - st.session_state.test_start_time).total_seconds()
     left = TEST_DURATION_SEC - elapsed
@@ -122,28 +57,27 @@ def get_time_left_sec():
     return int(left)
 
 
+def check_time_or_forfeit_and_finish_if_needed():
+    """
+    Si el tiempo llegó a 0 o se marcó forfeit (cambio de pestaña / perdió foco),
+    cerramos inmediatamente el test.
+    """
+    if st.session_state.stage == "test":
+        time_left = get_time_left_sec()
+        if time_left <= 0 or st.session_state.forfeit:
+            finalize_and_send()
+            st.session_state.stage = "done"
+            st.session_state._need_rerun = True
+
+
 def format_mm_ss(sec_left: int):
     mm = sec_left // 60
     ss = sec_left % 60
     return f"{mm:02d}:{ss:02d}"
 
 
-def check_time_or_forfeit_and_finish_if_needed():
-    """
-    - Si el tiempo llegó a 0, termina la prueba.
-    - Si se marcó forfeit (cambio de pestaña / blur), termina la prueba.
-    """
-    if st.session_state.stage == "test":
-        time_left = get_time_left_sec()
-        if time_left <= 0 or st.session_state.forfeit:
-            # tiempo agotado o forfeit => finalizar inmediatamente
-            finalize_and_send()
-            st.session_state.stage = "done"
-            st.session_state._need_rerun = True
-
-
 # =========================
-# PREGUNTAS (70 ítems)
+# PREGUNTAS (70 ítems aprox)
 # =========================
 QUESTIONS = [
     # ---------- Nivel muy básico / inicio ----------
@@ -174,7 +108,7 @@ QUESTIONS = [
     {
         "text": "Observa este patrón: un operario revisa 2 unidades cada 5 minutos. ¿Cuántas revisa en 15 minutos?",
         "options": ["2", "4", "6", "8"],
-        "answer": 2,  # 6
+        "answer": 2,
         "dim": "QN",
     },
     {
@@ -197,7 +131,7 @@ QUESTIONS = [
     {
         "text": "Un número aumenta en +3 cada paso: 5 → 8 → 11 → 14 → __",
         "options": ["15", "16", "17", "20"],
-        "answer": 2,  # 17
+        "answer": 2,
         "dim": "QN",
     },
     {
@@ -223,11 +157,11 @@ QUESTIONS = [
         "dim": "AT",
     },
 
-    # ---------- Aumenta dificultad: razonamiento multietapa ----------
+    # ---------- Aumenta dificultad ----------
     {
         "text": "Secuencia lógica: 2, 4, 8, 16, __",
         "options": ["20", "24", "30", "32"],
-        "answer": 3,  # 32 (x2)
+        "answer": 3,
         "dim": "QN",
     },
     {
@@ -278,7 +212,7 @@ QUESTIONS = [
     {
         "text": "Memoria de trabajo: Lee mentalmente esta cadena y cuenta las letras A: 'TARAZA' ¿Cuántas A hay?",
         "options": ["1", "2", "3", "4"],
-        "answer": 2,  # 3 A
+        "answer": 2,
         "dim": "MT",
     },
     {
@@ -306,11 +240,11 @@ QUESTIONS = [
     {
         "text": "Revisemos la secuencia anterior con corrección: términos: 1, 3, 4, 7, 11. ¿Cuál es el quinto término?",
         "options": ["7", "9", "11", "14"],
-        "answer": 2,  # 11
+        "answer": 2,
         "dim": "QN",
     },
 
-    # ---------- Dificultad media ----------
+    # ---------- Media ----------
     {
         "text": "Comprensión verbal: 'El protocolo será válido siempre que TODAS las mediciones estén dentro de rango'. ¿Qué significa?",
         "options": [
@@ -325,7 +259,7 @@ QUESTIONS = [
     {
         "text": "Memoria de trabajo: mentalmente ordena alfabéticamente estas letras: D, B, F, C. ¿Cuál va tercera en el orden alfabético?",
         "options": ["B", "C", "D", "F"],
-        "answer": 2,  # B C D F
+        "answer": 2,
         "dim": "MT",
     },
     {
@@ -359,7 +293,7 @@ QUESTIONS = [
     {
         "text": "Corregimos la pregunta anterior: la serie crece sumando 1,2,3,4,... ¿Cuál sigue después de 13?",
         "options": ["16", "17", "18", "19"],
-        "answer": 2,  # 18
+        "answer": 2,
         "dim": "QN",
     },
     {
@@ -404,11 +338,11 @@ QUESTIONS = [
     {
         "text": "Revisemos bien: subir de 80 a 100 es un aumento de 20 sobre 80. ¿Cuál porcentaje es más cercano?",
         "options": ["15%", "20%", "25%", "30%"],
-        "answer": 2,  # 25%
+        "answer": 2,
         "dim": "QN",
     },
 
-    # ---------- Dificultad media-alta ----------
+    # ---------- Media-alta ----------
     {
         "text": "Comprensión verbal: ¿Cuál opción expresa mejor 'ambigüedad'?",
         "options": [
@@ -501,11 +435,11 @@ QUESTIONS = [
     {
         "text": "Memoria de trabajo numérica: Mantén mentalmente '7 4 9'. Luego invierte el orden y suma mentalmente los dos primeros invertidos. ¿Cuál es la suma de 9 + 4?",
         "options": ["11", "12", "13", "14"],
-        "answer": 2,  # 13
+        "answer": 2,
         "dim": "MT",
     },
 
-    # ---------- Dificultad alta ----------
+    # ---------- Alta ----------
     {
         "text": "Razonamiento lógico abstracto: Si 'Algunos informes precisos son largos' y 'Ningún informe impreciso es confiable', ¿cuál afirmación NO puede inferirse directamente?",
         "options": [
@@ -564,7 +498,7 @@ QUESTIONS = [
     {
         "text": "Razonamiento numérico aplicado: Un valor se duplica y luego se incrementa en 50%. Si al inicio era 20, ¿el resultado final es?",
         "options": ["40", "50", "60", "70"],
-        "answer": 2,  # 60
+        "answer": 2,
         "dim": "QN",
     },
     {
@@ -621,7 +555,7 @@ QUESTIONS = [
     {
         "text": "Razonamiento cuantitativo proporcional: Si una mezcla tiene relación 2:3 de agua a solvente, y tienes 10 unidades de solvente, ¿cuánta agua corresponde mantener para la misma proporción?",
         "options": ["4", "5", "6", "8"],
-        "answer": 2,  # ~6-7 aprox
+        "answer": 2,
         "dim": "QN",
     },
     {
@@ -677,7 +611,7 @@ QUESTIONS = [
     {
         "text": "Corregimos la serie con patrón duplicando el incremento: +4, +8, +16, +32. Después de 33 viene:",
         "options": ["49", "57", "65", "80"],
-        "answer": 2,  # 65
+        "answer": 2,
         "dim": "QN",
     },
     {
@@ -728,7 +662,7 @@ QUESTIONS = [
     {
         "text": "Corregimos opciones: Si tras x3 y luego -2 obtienes 16, el valor inicial era:",
         "options": ["6", "7", "8", "9"],
-        "answer": 0,  # 6
+        "answer": 0,
         "dim": "QN",
     },
     {
@@ -775,9 +709,9 @@ QUESTIONS = [
         "answer": 0,
         "dim": "RL",
     },
-
 ]
-TOTAL_QUESTIONS = len(QUESTIONS)  # debería ser 70
+
+TOTAL_QUESTIONS = len(QUESTIONS)  # ~70
 
 
 # =========================
@@ -809,8 +743,7 @@ if "_need_rerun" not in st.session_state:
 # UTILIDADES PARA SCORING
 # =========================
 def is_correct(q_idx, choice_idx):
-    q = QUESTIONS[q_idx]
-    return choice_idx == q["answer"]
+    return choice_idx == QUESTIONS[q_idx]["answer"]
 
 def compute_dimension_scores():
     dims = ["RL", "QN", "VR", "MT", "AT"]
@@ -861,8 +794,8 @@ def choose_profile_label(pct_dict):
 
 def build_bullets(pct_dict):
     ordered = sorted(pct_dict.items(), key=lambda x: x[1], reverse=True)
-    top_dim, top_val = ordered[0]
-    low_dim, low_val = ordered[-1]
+    top_dim, _ = ordered[0]
+    low_dim, _ = ordered[-1]
 
     def dim_desc(d):
         if d == "RL":
@@ -914,7 +847,7 @@ def global_iq_band(pct_dict):
 
 
 # =========================
-# ENVOLTURA DE TEXTO PDF
+# ENVOLTURA TEXTO PDF
 # =========================
 def wrap_text(c, text, width, font="Helvetica", size=7):
     c.setFont(font, size)
@@ -934,17 +867,16 @@ def wrap_text(c, text, width, font="Helvetica", size=7):
 
 
 # =========================
-# SLIDERS EN PDF
+# SLIDERS PDF
 # =========================
 def slider_positions(scale6, corrects, totals):
-    sliders = [
+    return [
         ("Pensamiento concreto",          "Razonamiento abstracto",          scale6["RL"], "RL", corrects["RL"], totals["RL"]),
         ("Cálculo directo",               "Análisis numérico complejo",      scale6["QN"], "QN", corrects["QN"], totals["QN"]),
         ("Comprensión literal",           "Interpretación contextual",       scale6["VR"], "VR", corrects["VR"], totals["VR"]),
         ("Memoria inmediata simple",      "Manipulación mental activa",      scale6["MT"], "MT", corrects["MT"], totals["MT"]),
         ("Atención general",              "Precisión minuciosa / detalle",   scale6["AT"], "AT", corrects["AT"], totals["AT"]),
     ]
-    return sliders
 
 def draw_slider_line(c,
                      x_left,
@@ -976,7 +908,7 @@ def draw_slider_line(c,
 
 
 # =========================
-# GENERAR PDF FINAL (UNA HOJA)
+# GENERAR PDF (1 hoja)
 # =========================
 def generate_pdf(candidate_name, evaluator_email):
     corrects, pct, scale6, totals = compute_dimension_scores()
@@ -992,7 +924,7 @@ def generate_pdf(candidate_name, evaluator_email):
     buf = BytesIO()
     c = canvas.Canvas(buf, pagesize=A4)
 
-    # HEADER SUPERIOR
+    # HEADER
     c.setFont("Helvetica-Bold", 10)
     c.setFillColor(colors.black)
     c.drawString(margin_left, top_y, "EMPRESA / LOGO")
@@ -1021,8 +953,7 @@ def generate_pdf(candidate_name, evaluator_email):
                       top_y - 22,
                       "Perfil cognitivo · Screening general")
 
-    # GRÁFICO IZQUIERDA
-    corrects, pct, scale6, totals = compute_dimension_scores()
+    # GRÁFICO IZQ
     dims_order = ["RL", "QN", "VR", "MT", "AT"]
     labels_short = {"RL":"RL","QN":"QN","VR":"VR","MT":"MT","AT":"AT"}
 
@@ -1099,7 +1030,7 @@ def generate_pdf(candidate_name, evaluator_email):
                  chart_y_bottom + chart_h + 12,
                  "Puntaje por Dimensión (escala interna 0–6)")
 
-    # PANEL DATOS CANDIDATO DERECHA
+    # PANEL CANDIDATO DERECHA
     panel_x = chart_x + chart_w + 20
     panel_y_top = top_y - 40
     panel_w = W - margin_right - panel_x
@@ -1283,7 +1214,7 @@ def generate_pdf(candidate_name, evaluator_email):
 
 
 # =========================
-# ENVÍO POR CORREO
+# ENVÍO CORREO
 # =========================
 def send_email_with_pdf(to_email, pdf_bytes, filename, subject, body_text):
     msg = EmailMessage()
@@ -1305,7 +1236,7 @@ def send_email_with_pdf(to_email, pdf_bytes, filename, subject, body_text):
 
 
 # =========================
-# FINALIZAR: GENERAR + ENVIAR PDF
+# FINALIZAR TEST = PDF + ENVÍO
 # =========================
 def finalize_and_send():
     pdf_bytes = generate_pdf(
@@ -1332,7 +1263,7 @@ def finalize_and_send():
 
 
 # =========================
-# CALLBACK RESPUESTA PREGUNTA
+# CALLBACK RESPUESTA
 # =========================
 def answer_question(choice_idx):
     q_idx = st.session_state.current_q
@@ -1348,7 +1279,7 @@ def answer_question(choice_idx):
 
 
 # =========================
-# VISTAS STREAMLIT
+# VISTAS
 # =========================
 def view_info():
     st.markdown("### Datos del evaluado")
@@ -1378,85 +1309,168 @@ def view_info():
         st.session_state.answers = {i: None for i in range(TOTAL_QUESTIONS)}
         st.session_state.already_sent = False
 
-        # INICIO DEL TEMPORIZADOR GLOBAL (una sola vez aquí)
+        # INICIO REAL DEL CRONÓMETRO
         st.session_state.test_start_time = datetime.now()
 
-        # reset antitrampas
+        # limpiar estado de forfeit y la query
         st.session_state.forfeit = False
-        st.experimental_set_query_params()  # limpiar params (sin forfeit)
+        st.experimental_set_query_params()
 
         st.session_state.stage = "test"
         st.session_state._need_rerun = True
 
 
 def view_test():
-    # refresco automático cada segundo para que el tiempo se actualice y para detectar forfeit
-    try:
-        st.autorefresh(interval=1000, key="timer_autorefresh_v2")
-    except Exception:
-        pass
-
-    # chequeo de tiempo y foco
+    # Antes de renderizar, revisamos si ya se acabó el tiempo o hubo forfeit
     check_time_or_forfeit_and_finish_if_needed()
     if st.session_state.stage == "done":
         st.rerun()
-
-    # inyectar JS que marca forfeit cuando la pestaña pierde foco / etc.
-    js_focus_guard()
 
     q_idx = st.session_state.current_q
     q = QUESTIONS[q_idx]
     progreso = (q_idx + 1) / TOTAL_QUESTIONS
 
-    # tiempo restante real (según reloj, no según pregunta)
-    sec_left = get_time_left_sec()
-    time_str = format_mm_ss(sec_left)
+    # tiempo restante (segundos) al momento de render
+    sec_left_now = get_time_left_sec()
+    time_str_now = format_mm_ss(sec_left_now)
 
-    # color del timer según urgencia
-    if sec_left <= 30:
-        timer_bg = "#dc2626"   # rojo intenso
-        timer_fg = "#fff"
-        pulse_anim = "pulseRed"
-    elif sec_left <= 120:
-        timer_bg = "#facc15"   # amarillo alerta
-        timer_fg = "#000"
-        pulse_anim = "pulseYellow"
+    # calculamos el deadline absoluto (en ms) para pasárselo al JS
+    if st.session_state.test_start_time is not None:
+        start_ms = int(st.session_state.test_start_time.timestamp() * 1000)
     else:
-        timer_bg = "#1e40af"   # azul normal
-        timer_fg = "#fff"
-        pulse_anim = "pulseBlue"
+        start_ms = int(datetime.now().timestamp() * 1000)
+    total_ms = TEST_DURATION_SEC * 1000
 
-    # TIMER flotante mitad de pantalla derecha
+    # preparamos una URL con ?forfeit=1 para cuando pierda foco o se acabe el tiempo
+    current_params = st.experimental_get_query_params()
+    new_params = dict(current_params)
+    new_params["forfeit"] = "1"
+    redirect_qs = urlencode(new_params, doseq=True)
+
+    # TIMER flotante mitad de pantalla derecha.
+    # AHORA el texto interno se actualiza con JS cada segundo,
+    # y el color cambia según el tiempo restante.
     st.markdown(
         f"""
         <style>
-        @keyframes {pulse_anim} {{
-            0% {{ box-shadow:0 0 6px {timer_bg}; transform:scale(1);   }}
-            50%{{ box-shadow:0 0 16px {timer_bg}; transform:scale(1.06);}}
-            100%{{ box-shadow:0 0 6px {timer_bg}; transform:scale(1);   }}
+        @keyframes pulseBlue {{
+            0% {{ box-shadow:0 0 6px #1e40af; transform:scale(1);   }}
+            50%{{ box-shadow:0 0 16px #1e40af; transform:scale(1.06);}}
+            100%{{ box-shadow:0 0 6px #1e40af; transform:scale(1);   }}
         }}
-        .timerFloat {{
+        @keyframes pulseYellow {{
+            0% {{ box-shadow:0 0 6px #facc15; transform:scale(1);   }}
+            50%{{ box-shadow:0 0 16px #facc15; transform:scale(1.06);}}
+            100%{{ box-shadow:0 0 6px #facc15; transform:scale(1);   }}
+        }}
+        @keyframes pulseRed {{
+            0% {{ box-shadow:0 0 6px #dc2626; transform:scale(1);   }}
+            50%{{ box-shadow:0 0 16px #dc2626; transform:scale(1.06);}}
+            100%{{ box-shadow:0 0 6px #dc2626; transform:scale(1);   }}
+        }}
+        .timerFloatBox {{
             position:fixed;
             top:50vh;
             right:16px;
             transform:translateY(-50%);
             z-index:9999;
-            background:{timer_bg};
-            color:{timer_fg};
+            border-radius:12px;
+            padding:10px 14px;
             font-family:monospace;
             font-size:1.4rem;
             font-weight:700;
-            border-radius:12px;
-            padding:10px 14px;
-            animation:{pulse_anim} 1.2s infinite;
+            display:inline-block;
+            min-width:72px;
+            text-align:center;
         }}
         </style>
-        <div class="timerFloat">⏱ {time_str}</div>
+
+        <div id="timerFloat"
+             class="timerFloatBox"
+             style="background:#1e40af;color:#fff;animation:pulseBlue 1.2s infinite;">
+             <span id="timerText">⏱ {time_str_now}</span>
+        </div>
+
+        <script>
+        (function(){{
+            // ==== parámetros desde Python ====
+            const startMs   = {start_ms};
+            const duration  = {total_ms}; // ms
+            const deadline  = startMs + duration;
+            const redirectQS = "{redirect_qs}";
+            let alreadyDone = false;
+
+            function finishNow(){{
+                if(alreadyDone) return;
+                alreadyDone = true;
+                const base = window.location.origin + window.location.pathname;
+                window.location.replace(base + "?" + redirectQS);
+            }}
+
+            // anti-trampas: cambio de foco / pestaña / minimizar
+            function lostFocus(){{
+                finishNow();
+            }}
+            window.addEventListener("blur", lostFocus);
+            document.addEventListener("visibilitychange", function(){{
+                if(document.hidden) {{
+                    finishNow();
+                }}
+            }});
+            window.addEventListener("pagehide", lostFocus);
+            setInterval(function(){{
+                if (!document.hasFocus()) {{
+                    finishNow();
+                }}
+            }}, 200);
+
+            function pad2(n){{
+                return n.toString().padStart(2,"0");
+            }}
+
+            function updateTimerVisual(){{
+                const box  = document.getElementById("timerFloat");
+                const text = document.getElementById("timerText");
+                if(!box || !text) return;
+                const now = Date.now();
+                let leftMs = deadline - now;
+                if(leftMs < 0) leftMs = 0;
+                const leftSec = Math.floor(leftMs/1000);
+                const mm = pad2(Math.floor(leftSec/60));
+                const ss = pad2(leftSec % 60);
+                text.textContent = "⏱ " + mm + ":" + ss;
+
+                // actualizar color / animación
+                if(leftSec <= 30){{
+                    box.style.background = "#dc2626";
+                    box.style.color = "#fff";
+                    box.style.animation = "pulseRed 1.2s infinite";
+                }} else if(leftSec <= 120){{
+                    box.style.background = "#facc15";
+                    box.style.color = "#000";
+                    box.style.animation = "pulseYellow 1.2s infinite";
+                }} else {{
+                    box.style.background = "#1e40af";
+                    box.style.color = "#fff";
+                    box.style.animation = "pulseBlue 1.2s infinite";
+                }}
+
+                if(leftSec <= 0){{
+                    finishNow();
+                }}
+            }}
+
+            // refresco cada 1s del cronómetro
+            setInterval(updateTimerVisual, 1000);
+            // primer draw inmediato
+            updateTimerVisual();
+        }})();
+        </script>
         """,
         unsafe_allow_html=True
     )
 
-    # header visual estilo tarjeta
+    # encabezado pregunta
     st.markdown(
         f"""
         <div style="
@@ -1485,7 +1499,7 @@ def view_test():
 
     st.progress(progreso)
 
-    # cuerpo de pregunta
+    # enunciado
     st.markdown(
         f"""
         <div style="
@@ -1534,7 +1548,7 @@ def view_test():
         unsafe_allow_html=True
     )
 
-    # última verificación por si el tiempo llegó a 0 durante el render
+    # último chequeo por si justo se agotó el tiempo ya mismo
     check_time_or_forfeit_and_finish_if_needed()
     if st.session_state.stage == "done":
         st.rerun()
@@ -1592,10 +1606,7 @@ if st.session_state.stage == "info":
     view_info()
 
 elif st.session_state.stage == "test":
-    # IMPORTANTE: ya no volvemos a resetear test_start_time aquí.
-    # Así evitamos que el cronómetro "reinicie" y parezca que baja sólo al cambiar pregunta.
-
-    # si por alguna razón ya contestó todas:
+    # si ya contestó todas las preguntas manualmente
     if st.session_state.current_q >= TOTAL_QUESTIONS:
         finalize_and_send()
         st.session_state.stage = "done"
@@ -1607,7 +1618,7 @@ elif st.session_state.stage == "done":
     finalize_and_send()
     view_done()
 
-# forzar rerun controlado para que pase pantalla sin doble click
+# rerun controlado para navegación entre pantallas
 if st.session_state._need_rerun:
     st.session_state._need_rerun = False
     st.rerun()
