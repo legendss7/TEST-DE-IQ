@@ -1301,8 +1301,7 @@ def view_info():
         st.session_state._need_rerun = True
 
 def view_test():
-    # 🔁 auto-refresh cada 1 segundo mientras estás en el test
-    st.autorefresh(interval=1000, limit=None, key="timer_autorefresh")
+    # IMPORTANTE: ya no usamos st.autorefresh() porque tu versión de Streamlit no lo soporta.
 
     # validar tiempo / foco antes de mostrar contenido
     check_time_or_forfeit_and_finish_if_needed()
@@ -1331,7 +1330,7 @@ def view_test():
     new_params["forfeit"] = "1"
     redirect_qs = urlencode(new_params, doseq=True)
 
-    # bloque timer fijo al lado derecho (mitad pantalla)
+    # bloque timer flotante (mitad vertical derecha) + antitrampas + countdown real
     st.markdown(
         f"""
         <style>
@@ -1419,7 +1418,7 @@ def view_test():
                 const ss = pad2(leftSec % 60);
                 text.textContent = "⏱ " + mm + ":" + ss;
 
-                // cambiar color y animación según urgencia
+                // cambiar color / animación según urgencia
                 if(leftSec <= 30){{
                     box.style.background = "#dc2626";
                     box.style.color = "#fff";
@@ -1447,7 +1446,7 @@ def view_test():
         unsafe_allow_html=True
     )
 
-    # tarjeta header pregunta
+    # tarjeta header de la pregunta
     st.markdown(
         f"""
         <div style="
@@ -1498,7 +1497,7 @@ def view_test():
         unsafe_allow_html=True
     )
 
-    # opciones
+    # opciones de respuesta
     for opt_i, opt_text in enumerate(q["options"]):
         st.button(
             opt_text,
