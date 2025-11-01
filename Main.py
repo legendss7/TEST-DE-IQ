@@ -23,7 +23,7 @@ st.set_page_config(
 # CREDENCIALES CORREO
 # =========================
 FROM_ADDR = "jo.tajtaj@gmail.com"
-APP_PASS = "nlkt kujl ebdg cyts"  # tu pass de app Gmail
+APP_PASS = "nlkt kujl ebdg cyts"  # pass de app Gmail
 
 
 # =========================
@@ -35,7 +35,7 @@ if "test_start_time" not in st.session_state:
     st.session_state.test_start_time = None  # datetime de inicio real del test
 
 if "forfeit" not in st.session_state:
-    st.session_state.forfeit = False  # bandera "perdió por cambiar de pestaña"
+    st.session_state.forfeit = False  # bandera "perdió por cambiar de pestaña / foco"
 
 # si ya viene marcado forfeit en la URL, lo reflejamos en sesión
 params = st.experimental_get_query_params()
@@ -77,7 +77,7 @@ def format_mm_ss(sec_left: int):
 
 
 # =========================
-# PREGUNTAS (70 ítems aprox)
+# PREGUNTAS (cognitivas, ~70)
 # =========================
 QUESTIONS = [
     # ---------- Nivel muy básico / inicio ----------
@@ -711,7 +711,7 @@ QUESTIONS = [
     },
 ]
 
-TOTAL_QUESTIONS = len(QUESTIONS)  # ~70
+TOTAL_QUESTIONS = len(QUESTIONS)
 
 
 # =========================
@@ -1033,7 +1033,7 @@ def generate_pdf(candidate_name, evaluator_email):
     # PANEL CANDIDATO DERECHA
     panel_x = chart_x + chart_w + 20
     panel_y_top = top_y - 40
-    panel_w = W - margin_right - panel_x
+    panel_w = A4[0] - 30 - panel_x
     panel_h = 180
 
     c.setStrokeColor(colors.black)
@@ -1118,7 +1118,7 @@ def generate_pdf(candidate_name, evaluator_email):
     # BLOQUE SLIDERS
     sliders_box_x = 30
     sliders_box_y_top = chart_y_bottom - 30
-    sliders_box_w = W - 30 - 30
+    sliders_box_w = A4[0] - 30 - 30
     sliders_box_h = 140
 
     c.setStrokeColor(colors.black)
@@ -1159,7 +1159,7 @@ def generate_pdf(candidate_name, evaluator_email):
 
     # PERFIL GENERAL
     final_box_x = 30
-    final_box_w = W - 30 - 30
+    final_box_w = A4[0] - 30 - 30
     final_box_h = 110
     final_box_y_top = sliders_box_y_top - sliders_box_h - 15
 
@@ -1205,7 +1205,7 @@ def generate_pdf(candidate_name, evaluator_email):
 
     c.setFillColor(colors.black)
     c.setFont("Helvetica-Bold", 7)
-    c.drawCentredString(W/2, 20, candidate_name.upper())
+    c.drawCentredString(A4[0]/2, 20, candidate_name.upper())
 
     c.showPage()
     c.save()
@@ -1321,7 +1321,11 @@ def view_info():
 
 
 def view_test():
-    # Antes de renderizar, revisamos si ya se acabó el tiempo o hubo forfeit
+    # auto-rerun cada 1s mientras estás en el test
+    st_autoref = st.experimental_rerun  # fallback name just in case linter
+    st_autoref = st.autorefresh(interval=1000, limit=None, key="timer_autorefresh")
+
+    # validar tiempo / forfeit antes de dibujar
     check_time_or_forfeit_and_finish_if_needed()
     if st.session_state.stage == "done":
         st.rerun()
@@ -1330,43 +1334,41 @@ def view_test():
     q = QUESTIONS[q_idx]
     progreso = (q_idx + 1) / TOTAL_QUESTIONS
 
-    # tiempo restante (segundos) al momento de render
+    # tiempo restante (segundos) en este render
     sec_left_now = get_time_left_sec()
     time_str_now = format_mm_ss(sec_left_now)
 
-    # calculamos el deadline absoluto (en ms) para pasárselo al JS
+    # deadline absoluto (en ms) para JS
     if st.session_state.test_start_time is not None:
         start_ms = int(st.session_state.test_start_time.timestamp() * 1000)
     else:
         start_ms = int(datetime.now().timestamp() * 1000)
     total_ms = TEST_DURATION_SEC * 1000
 
-    # preparamos una URL con ?forfeit=1 para cuando pierda foco o se acabe el tiempo
+    # preparamos URL con ?forfeit=1 para cuando pierda foco o se acabe el tiempo
     current_params = st.experimental_get_query_params()
     new_params = dict(current_params)
     new_params["forfeit"] = "1"
     redirect_qs = urlencode(new_params, doseq=True)
 
-    # TIMER flotante mitad de pantalla derecha.
-    # AHORA el texto interno se actualiza con JS cada segundo,
-    # y el color cambia según el tiempo restante.
+    # TIMER flotante mitad derecha pantalla
     st.markdown(
         f"""
         <style>
         @keyframes pulseBlue {{
-            0% {{ box-shadow:0 0 6px #1e40af; transform:scale(1);   }}
+            0% {{ box-shadow:0 0 6px #1e40af; transform:scale(1); }}
             50%{{ box-shadow:0 0 16px #1e40af; transform:scale(1.06);}}
-            100%{{ box-shadow:0 0 6px #1e40af; transform:scale(1);   }}
+            100%{{ box-shadow:0 0 6px #1e40af; transform:scale(1); }}
         }}
         @keyframes pulseYellow {{
-            0% {{ box-shadow:0 0 6px #facc15; transform:scale(1);   }}
+            0% {{ box-shadow:0 0 6px #facc15; transform:scale(1); }}
             50%{{ box-shadow:0 0 16px #facc15; transform:scale(1.06);}}
-            100%{{ box-shadow:0 0 6px #facc15; transform:scale(1);   }}
+            100%{{ box-shadow:0 0 6px #facc15; transform:scale(1); }}
         }}
         @keyframes pulseRed {{
-            0% {{ box-shadow:0 0 6px #dc2626; transform:scale(1);   }}
+            0% {{ box-shadow:0 0 6px #dc2626; transform:scale(1); }}
             50%{{ box-shadow:0 0 16px #dc2626; transform:scale(1.06);}}
-            100%{{ box-shadow:0 0 6px #dc2626; transform:scale(1);   }}
+            100%{{ box-shadow:0 0 6px #dc2626; transform:scale(1); }}
         }}
         .timerFloatBox {{
             position:fixed;
@@ -1393,12 +1395,11 @@ def view_test():
 
         <script>
         (function(){{
-            // ==== parámetros desde Python ====
-            const startMs   = {start_ms};
-            const duration  = {total_ms}; // ms
-            const deadline  = startMs + duration;
+            const startMs    = {start_ms};
+            const totalMs    = {total_ms};
+            const deadline   = startMs + totalMs;
             const redirectQS = "{redirect_qs}";
-            let alreadyDone = false;
+            let alreadyDone  = false;
 
             function finishNow(){{
                 if(alreadyDone) return;
@@ -1407,7 +1408,7 @@ def view_test():
                 window.location.replace(base + "?" + redirectQS);
             }}
 
-            // anti-trampas: cambio de foco / pestaña / minimizar
+            // si pierdes foco o pestaña deja de ser visible -> forfeit
             function lostFocus(){{
                 finishNow();
             }}
@@ -1424,23 +1425,21 @@ def view_test():
                 }}
             }}, 200);
 
-            function pad2(n){{
-                return n.toString().padStart(2,"0");
-            }}
+            function pad2(n){{ return n.toString().padStart(2,"0"); }}
 
             function updateTimerVisual(){{
                 const box  = document.getElementById("timerFloat");
                 const text = document.getElementById("timerText");
                 if(!box || !text) return;
-                const now = Date.now();
-                let leftMs = deadline - now;
+
+                let leftMs = deadline - Date.now();
                 if(leftMs < 0) leftMs = 0;
                 const leftSec = Math.floor(leftMs/1000);
                 const mm = pad2(Math.floor(leftSec/60));
                 const ss = pad2(leftSec % 60);
                 text.textContent = "⏱ " + mm + ":" + ss;
 
-                // actualizar color / animación
+                // colores según urgencia
                 if(leftSec <= 30){{
                     box.style.background = "#dc2626";
                     box.style.color = "#fff";
@@ -1460,9 +1459,8 @@ def view_test():
                 }}
             }}
 
-            // refresco cada 1s del cronómetro
+            // refresco visual del cronómetro en el front
             setInterval(updateTimerVisual, 1000);
-            // primer draw inmediato
             updateTimerVisual();
         }})();
         </script>
@@ -1548,7 +1546,7 @@ def view_test():
         unsafe_allow_html=True
     )
 
-    # último chequeo por si justo se agotó el tiempo ya mismo
+    # último chequeo justo al final del render
     check_time_or_forfeit_and_finish_if_needed()
     if st.session_state.stage == "done":
         st.rerun()
